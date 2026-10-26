@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Vercel
+.vercel/
+
+# macOS
+.DS_Store
+
+# Course material exported from Notion (not part of the project)
+ff2a8934-*_ExportBlock-*/
+
+# Local editor/tool settings
+.claude/

@@ -1,0 +1,6 @@
+Method,Best Number of Features,Selected Features,CV RMSE (train),Test RMSE,Test R-squared
+Lasso (L1 Ranking),3,"R&D Spend, Marketing Spend, Administration",9104.68119706925,8995.905803361416,0.900065308303732
+Forward SFS,3,"R&D Spend, Administration, Marketing Spend",9104.681197069249,8995.905803361415,0.9000653083037321
+RFE,3,"R&D Spend, Marketing Spend, Administration",9104.68119706925,8995.905803361416,0.900065308303732
+ElasticNet Ranking,2,"R&D Spend, Marketing Spend",9186.680413894432,8206.328813165856,0.9168381183550247
+Exhaustive Search,3,"R&D Spend, Administration, Marketing Spend",9104.681197069249,8995.905803361415,0.9000653083037321

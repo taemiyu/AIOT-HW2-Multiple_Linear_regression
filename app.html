@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Multiple Regression Explorer</title>
+<meta name="description" content="多元線性迴歸探索器：切換資料集與 5 種特徵選擇演算法，或輸入任意 CSV，即時計算係數、p 值、診斷與預測。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: explorer dashboard. Breadcrumb header, matcha hero with a sleeping kitten, one control card (dataset -> algorithm -> k), then KPI row, charts, model detail, predictor, residuals. */
+/* Palette "matcha & washi": rice-paper neutrals, sage primary, ochre accent. Light only.
+   Chart series are validated (OKLab CVD >= 8 on adjacent pairs, contrast >= 3:1 on the surface). */
+:root {
+  color-scheme: light;
+  --bg: #f6f3ea; --surface: #fffdf7; --surface-2: #efebdf; --border: #ddd7c8;
+  --text: #2e3a31; --text-2: #46534a; --muted: #687265; --faint: #9ea397;
+  --primary: #56755b; --primary-2: #44604a; --primary-soft: #e3eadb; --on-primary: #fffdf7;
+  --accent: #c08a4b; --accent-ink: #8a5a22; --accent-soft: #f3e6d3;
+  --hero-bg: #e3eadb; --hero-sub: #55665a;
+  --cat: #262826;
+  --ok: #3e7b3a; --ok-soft: #e4efdd; --warn: #8f5e10; --warn-soft: #f6ebd3; --bad: #a8423a; --bad-soft: #f7e4e0;
+  --c1: #3d8b62; --c2: #8c5cc2; --c3: #c06f1c; --c4: #4176c2; --c5: #c84f63;
+  --train: #3d8b62; --test: #c06f1c; --curve: #c06f1c; --mark-cur: #c06f1c;
+  --div-pos: #4176c2; --div-neg: #c84f63; --grid: #e8e3d6; --axis: #cfc8b6;
+  --shadow: 0 1px 2px rgba(46, 58, 49, .05), 0 2px 6px rgba(46, 58, 49, .05);
+  --f-ui: "Inter", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --f-serif: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--f-ui); font-size: 15px; line-height: 1.6; }
+h1, h2, h3 { margin: 0; line-height: 1.3; text-wrap: balance; font-family: var(--f-serif); font-weight: 700; }
+p { margin: 0; }
+a { color: var(--primary); }
+button, select, input { font: inherit; }
+.mono, .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.small { font-size: 0.84rem; }
+.container { max-width: 1240px; margin: 0 auto; padding-inline: 20px; }
+
+/* Header */
+.top-header { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; }
+.header-inner { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-block: 12px; flex-wrap: wrap; }
+.breadcrumbs { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); flex-wrap: wrap; }
+.breadcrumbs a { color: var(--muted); text-decoration: none; }
+.breadcrumbs a:hover { color: var(--primary); }
+.breadcrumbs b { color: var(--text); font-weight: 600; }
+.top-header h1 { font-size: clamp(1.1rem, 2.4vw, 1.45rem); font-weight: 800; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+.brand-badge { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; background: var(--primary); color: var(--on-primary); padding: 2px 8px; border-radius: 99px; }
+.header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ref-btn { font-size: 0.8rem; font-weight: 600; text-decoration: none; color: var(--text-2); border: 1px solid var(--border); background: var(--surface); border-radius: 99px; padding: 6px 14px; }
+.ref-btn:hover { border-color: var(--primary); color: var(--primary); }
+@media (max-width: 640px) { .top-header { position: static; } .ref-btn { padding: 4px 10px; font-size: 0.74rem; } }
+
+main { display: grid; gap: 20px; padding-block: 24px 64px; }
+
+/* Hero */
+.hero { background: var(--hero-bg); color: var(--text); border-radius: 18px; padding: 28px clamp(20px, 4vw, 36px); display: grid; gap: 12px; position: relative; overflow: hidden; }
+.hero > * { position: relative; z-index: 1; max-width: min(760px, 100%); }
+body { overflow-x: clip; }
+.hero h2 { font-size: clamp(1.4rem, 3.2vw, 2rem); font-weight: 800; }
+.hero p { color: var(--hero-sub); max-width: 70ch; }
+.hero p b { color: var(--text); }
+.hero-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.hero-chip { font-size: 0.78rem; font-weight: 500; padding: 4px 11px; border-radius: 99px; background: rgba(255, 253, 247, .7); border: 1px solid var(--border); color: var(--text-2); }
+
+/* Cards */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; box-shadow: var(--shadow); display: grid; gap: 14px; min-width: 0; align-content: start; }
+.card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.card-head h3 { font-size: 1rem; font-weight: 700; }
+.step-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.step-label::before { content: attr(data-n); width: 20px; height: 20px; border-radius: 6px; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-size: 0.72rem; }
+.control-block { display: grid; gap: 10px; }
+.control-block + .control-block { border-top: 1px dashed var(--border); padding-top: 16px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 860px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* Segmented buttons */
+.seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg button { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 10px; padding: 7px 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 0.86rem; font-weight: 600; }
+.seg button small { font-size: 0.68rem; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
+.seg button:hover { border-color: var(--primary); }
+.seg button[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.seg button[aria-pressed="true"] small { background: rgba(255, 255, 255, .22); color: var(--on-primary); }
+.seg button:disabled { opacity: .45; cursor: not-allowed; }
+.seg button .tag-ok { background: var(--ok-soft); color: var(--ok); }
+.seg button .tag-warn { background: var(--warn-soft); color: var(--warn); }
+.seg.k button { flex-direction: column; align-items: flex-start; gap: 0; min-width: 104px; }
+.seg.k button span.sub { font-size: 0.7rem; font-weight: 500; opacity: .8; max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.check-chip { border: 1px solid var(--border); border-radius: 10px; padding: 6px 12px; display: inline-flex; gap: 8px; align-items: center; cursor: pointer; font-size: 0.86rem; background: var(--surface); }
+.check-chip:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
+.check-chip input { accent-color: var(--primary); margin: 0; }
+.check-chip .type { font-size: 0.66rem; font-family: var(--f-mono); color: var(--muted); }
+.check-chip.off { opacity: .55; cursor: default; }
+
+/* Dataset inputs */
+.ds-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+select.big { min-width: min(320px, 100%); padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 600; }
+.field { display: flex; gap: 8px; flex: 1 1 360px; min-width: 0; }
+.field input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.btn { border: 1px solid var(--primary); background: var(--primary); color: var(--on-primary); border-radius: 10px; padding: 8px 16px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.btn.ghost { background: transparent; color: var(--primary); }
+.btn:disabled { opacity: .5; cursor: wait; }
+.dropzone { border: 2px dashed var(--border); border-radius: 12px; padding: 22px; text-align: center; display: grid; gap: 6px; justify-items: center; background: var(--surface-2); cursor: pointer; }
+.dropzone.drag { border-color: var(--primary); background: var(--primary-soft); }
+.dropzone b { font-size: 0.95rem; }
+.msg { font-size: 0.84rem; padding: 8px 12px; border-radius: 8px; }
+.msg.ok { background: var(--ok-soft); color: var(--ok); }
+.msg.err { background: var(--bad-soft); color: var(--bad); }
+.msg.info { background: var(--primary-soft); color: var(--primary-2); }
+details summary { cursor: pointer; font-size: 0.86rem; font-weight: 600; color: var(--text-2); }
+
+/* KPIs */
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 1080px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--kc, var(--primary)); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); display: grid; gap: 4px; align-content: start; min-width: 0; }
+.kpi .k-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; flex-wrap: wrap; }
+.kpi .k-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.kpi .k-value { font-size: clamp(1.3rem, 2.3vw, 1.7rem); font-weight: 700; font-family: var(--f-serif); overflow-wrap: anywhere; }
+.kpi .k-sub { font-size: 0.78rem; color: var(--muted); }
+.badge { font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.badge.ok { background: var(--ok-soft); color: var(--ok); }
+.badge.warn { background: var(--warn-soft); color: var(--warn); }
+.badge.bad { background: var(--bad-soft); color: var(--bad); }
+.badge.info { background: var(--primary-soft); color: var(--primary); }
+.badge i { font-style: normal; }
+.pred-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pchip { font-size: 0.8rem; font-weight: 600; padding: 3px 10px; border-radius: 99px; background: var(--primary-soft); color: var(--primary); font-family: var(--f-mono); }
+
+/* Equation */
+.equation { border-left: 4px solid var(--primary); border-radius: 0 14px 14px 0; }
+.equation .eq { font-family: var(--f-mono); font-size: clamp(0.85rem, 1.6vw, 1rem); font-weight: 600; overflow-wrap: anywhere; }
+
+/* Tables */
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.86rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+th { font-size: 0.7rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); font-weight: 700; background: var(--surface-2); white-space: nowrap; }
+td.n, th.n { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.sig td { background: color-mix(in srgb, var(--ok) 6%, transparent); }
+tr.cur td { background: var(--primary-soft); }
+.pos { color: var(--ok); }
+.neg { color: var(--bad); }
+
+/* Assumption checks */
+.checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 12px; }
+.check { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; align-content: start; }
+.check .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.check b { font-size: 0.9rem; }
+
+/* Charts */
+.chart-box { position: relative; min-width: 0; }
+svg.chart { width: 100%; height: auto; display: block; overflow: visible; touch-action: pan-y; }
+svg.chart text { fill: var(--muted); font-family: var(--f-mono); font-size: 10px; }
+svg.chart .t-strong { fill: var(--text); font-weight: 600; }
+svg.chart .grid { stroke: var(--grid); stroke-width: 1; }
+svg.chart .axis { stroke: var(--axis); stroke-width: 1; }
+svg.chart .hit { fill: transparent; cursor: crosshair; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.8rem; color: var(--text-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.legend i.dot { width: 9px; height: 9px; border-radius: 50%; }
+#tip { position: fixed; z-index: 60; pointer-events: none; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 0.8rem; box-shadow: 0 10px 30px rgba(15, 23, 42, .15); min-width: 150px; max-width: 300px; }
+#tip .t-title { font-size: 0.74rem; color: var(--muted); margin-bottom: 4px; }
+#tip .t-row { display: flex; align-items: center; gap: 8px; }
+#tip .t-row i { width: 12px; height: 3px; border-radius: 2px; flex: none; }
+#tip .t-row b { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+#tip .t-row span { color: var(--muted); }
+
+/* Predictor */
+.predictor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+@media (max-width: 860px) { .predictor { grid-template-columns: minmax(0, 1fr); } }
+.slider { display: grid; gap: 4px; }
+.slider label { display: flex; justify-content: space-between; gap: 8px; font-size: 0.86rem; font-weight: 600; }
+.slider input[type="range"] { width: 100%; accent-color: var(--primary); }
+.slider select { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.slider .note { font-size: 0.74rem; color: var(--warn); min-height: 1em; }
+.pred-card { background: var(--primary-soft); color: var(--text); border-radius: 14px; padding: 22px 22px 58px; display: grid; gap: 8px; align-content: center; text-align: center; position: relative; overflow: hidden; }
+.pred-card .peek { position: absolute; right: 18px; bottom: -4px; width: 40px; color: var(--cat); }
+.pred-card .lbl { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: .8; }
+.pred-card .val { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 700; color: var(--primary-2); font-family: var(--f-serif); line-height: 1.1; }
+.pred-card .sub { font-size: 0.82rem; color: var(--text-2); }
+.copy-box { background: var(--surface-2); border-radius: 10px; padding: 14px; font-size: 0.9rem; line-height: 1.7; }
+ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+.busy { opacity: .45; pointer-events: none; transition: opacity .15s; }
+footer { border-top: 1px solid var(--border); background: var(--surface); padding-block: 28px 40px; font-size: 0.86rem; color: var(--muted); position: relative; }
+footer .sitter { position: absolute; left: max(20px, calc(50% - 600px)); top: -46px; width: 34px; color: var(--cat); }
+footer .trail { position: absolute; left: max(64px, calc(50% - 556px)); top: -14px; display: flex; gap: 10px; color: var(--faint); }
+footer .trail svg { width: 11px; transform: rotate(80deg); }
+footer .trail svg:nth-child(even) { margin-top: 5px; }
+footer h4 { margin: 0 0 8px; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); }
+footer ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.cat-ico { width: 1.25em; height: 1.25em; color: var(--cat); flex: none; }
+.paw { width: 0.95em; height: 0.95em; vertical-align: -0.1em; fill: currentColor; }
+.seg button[aria-pressed="true"] .tag-ok { background: var(--accent-soft); color: var(--accent-ink); }
+</style>
+</head>
+<body>
+
+<header class="top-header">
+  <div class="container header-inner">
+    <div>
+      <nav class="breadcrumbs" aria-label="麵包屑">
+        <a href="index.html">首頁</a><span aria-hidden="true">›</span><a href="#controls">迴歸分析</a><span aria-hidden="true">›</span><b id="crumb">50 Startups</b>
+      </nav>
+      <h1><svg class="cat-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 11V3.5l4.6 3.6a9 9 0 0 1 6.8 0L20 3.5V11c.8 1.2 1.2 2.5 1.2 3.8 0 3.8-4.1 6.4-9.2 6.4s-9.2-2.6-9.2-6.4C2.8 13.5 3.2 12.2 4 11Z"/></svg>多元線性迴歸探索器 <span class="brand-badge">CRISP-DM</span></h1>
+    </div>
+    <div class="header-actions">
+      <a class="ref-btn" href="index.html">50 Startups 專案報告</a>
+      <a class="ref-btn" href="https://statsunlock.com/multiple-linear-regression-calculator/" target="_blank" rel="noopener">Style Ref: StatsUnlock ↗</a>
+    </div>
+  </div>
+</header>
+
+<div id="tip" hidden></div>
+
+<main class="container">
+  <section class="hero" aria-labelledby="heroTitle">
+    <h2 id="heroTitle">特徵選擇與精簡模型分析</h2>
+    <p id="heroText">載入資料中…</p>
+    <div class="hero-chips" id="heroChips"></div>
+  </section>
+
+  <section class="card" id="controls" aria-label="分析設定">
+    <div class="control-block">
+      <div class="step-label" data-n="1">選擇資料集（Problem）</div>
+      <div class="ds-row">
+        <select class="big" id="dsSelect" aria-label="資料集">
+          <option value="startups">50 Startups：預測新創公司利潤</option>
+          <option value="advertising">Advertising：預測廣告後的銷售量</option>
+          <option value="insurance">Medical Insurance：預測醫療保險費</option>
+          <option value="boston">Boston Housing：預測波士頓房價</option>
+          <option value="url">自訂資料集：輸入 CSV 網址</option>
+          <option value="upload">自訂資料集：上傳 CSV 檔</option>
+        </select>
+        <span class="small muted" id="dsDesc"></span>
+      </div>
+      <div id="urlPanel" class="ds-row" hidden>
+        <form class="field" id="urlForm">
+          <label for="urlInput" class="small muted" style="align-self:center">網址</label>
+          <input id="urlInput" type="url" placeholder="https://raw.githubusercontent.com/…/data.csv" value="https://raw.githubusercontent.com/Avik-Jain/100-Days-Of-ML-Code/master/datasets/50_Startups.csv">
+          <button class="btn" type="submit" id="urlBtn">載入</button>
+        </form>
+        <span class="small muted">支援 raw.githubusercontent.com 等允許跨網域讀取的網址；貼 GitHub 頁面網址會自動轉成 raw。</span>
+      </div>
+      <div id="uploadPanel" hidden>
+        <label class="dropzone" id="dropzone" for="fileInput">
+          <b>拖曳 CSV 檔到這裡，或點擊選擇檔案</b>
+          <span class="small muted">第一列需為欄位名稱；檔案只在你的瀏覽器裡讀取，不會上傳到任何伺服器</span>
+          <input type="file" id="fileInput" accept=".csv,text/csv" hidden>
+        </label>
+      </div>
+      <div id="dsMsg" class="msg info" hidden></div>
+      <div id="colPanel" class="control-block" style="border:0;padding:0" hidden>
+        <div class="ds-row">
+          <label for="targetSelect" class="small" style="font-weight:600">預測目標 y</label>
+          <select id="targetSelect" class="big" style="min-width:200px"></select>
+          <span class="small muted">候選特徵（取消勾選可排除欄位）：</span>
+        </div>
+        <div class="seg" id="poolChips"></div>
+        <div class="msg info" id="dsNotice" hidden></div>
+        <details><summary>預覽資料（前 8 列）</summary><div class="tbl" style="margin-top:8px"><table id="preview"></table></div></details>
+      </div>
+    </div>
+
+    <div class="control-block">
+      <div class="step-label" data-n="2">選擇特徵選擇演算法</div>
+      <div class="seg" id="algoBtns" role="group" aria-label="演算法"></div>
+    </div>
+
+    <div class="control-block">
+      <div class="step-label" data-n="3" id="kLabel">特徵數 k</div>
+      <div class="seg k" id="kBtns" role="group" aria-label="特徵數"></div>
+      <div class="seg" id="manualChips" hidden></div>
+      <div class="ds-row small muted">
+        <label for="alpha">顯著水準 α</label>
+        <select id="alpha"><option value="0.05">0.05</option><option value="0.01">0.01</option><option value="0.10">0.10</option></select>
+        <label for="mode" style="margin-left:10px">係數表擬合資料</label>
+        <select id="mode"><option value="train">訓練集</option><option value="all">全部資料</option></select>
+      </div>
+    </div>
+  </section>
+
+  <div id="results">
+    <div style="display:grid;gap:20px">
+      <div class="kpis" id="kpis"></div>
+
+      <div class="card" style="padding:14px 20px">
+        <div class="pred-chips" id="activeChips"></div>
+        <p class="small muted" id="activeNote"></p>
+      </div>
+
+      <div class="card" id="criteriaCard" hidden>
+        <div class="card-head"><h3>商業目標達成度（Phase 1 訂定的成功標準）</h3></div>
+        <div class="checks" id="criteria"></div>
+      </div>
+
+      <div class="grid2">
+        <div class="card"><div class="card-head"><h3>RMSE by Number of Features</h3><span class="small muted">越低越好・點圖可切換 k</span></div><div class="legend" id="legRmse"></div><div class="chart-box" id="chRmse"></div></div>
+        <div class="card"><div class="card-head"><h3>R-squared by Number of Features</h3><span class="small muted">越高越好・點圖可切換 k</span></div><div class="legend" id="legR2"></div><div class="chart-box" id="chR2"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>5 種演算法比較</h3><span class="small muted">點一列可切換到該演算法</span></div>
+        <div class="tbl"><table id="compTable"></table></div>
+        <p class="small muted">所有演算法只看訓練集、用 5-fold 交叉驗證挑特徵，測試集只用來回報。「1-SD」是 CV RMSE 落在最佳值一個標準差內的最小 k（精簡原則）。</p>
+      </div>
+
+      <div class="card equation">
+        <div class="step-label" data-n="ƒ">擬合的 OLS 迴歸方程式</div>
+        <div class="eq" id="equation"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>模型係數與統計檢定</h3><span class="small muted" id="coefNote"></span></div>
+        <div class="tbl"><table id="coefTable"></table></div>
+        <p class="small muted">綠底為 p &lt; α（顯著）。標準化 β 可直接比較影響大小。VIF &gt; 10 代表共線性嚴重。類別變數以第一個類別為基準（Reference）。</p>
+        <div class="tbl"><table id="anovaTable"></table></div>
+      </div>
+
+      <div class="grid2">
+        <div class="card"><h3>實際 vs 預測</h3><div class="legend" id="legAvp"></div><div class="chart-box" id="avp"></div></div>
+        <div class="card"><h3>殘差 vs 預測值</h3><div class="legend" id="legRvf"></div><div class="chart-box" id="rvf"></div></div>
+        <div class="card"><h3>標準化係數 β 與信賴區間</h3><div class="chart-box" id="betas"></div></div>
+        <div class="card"><h3>殘差分布</h3><div class="chart-box" id="hist"></div><p class="small muted">曲線為同平均、同標準差的常態分布。</p></div>
+      </div>
+
+      <div class="card">
+        <h3>線性迴歸假設檢定</h3>
+        <div class="checks" id="assumptions"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>即時預測器</h3><span class="badge info">Real-time</span></div>
+        <div class="predictor">
+          <div style="display:grid;gap:14px;align-content:start" id="sliders"></div>
+          <div class="pred-card">
+            <div class="lbl" id="predLabel">預測值</div>
+            <div class="val" id="predValue">—</div>
+            <div class="sub" id="predRange"></div>
+            <div class="sub" id="predParts"></div>
+            <svg class="peek" viewBox="0 0 44 62" fill="currentColor" aria-hidden="true"><path d="M12 61c-5-6-6-15-3-22-3-3-5-8-4-13L4 12l8 6c3-1 8-1 11 0l8-6-1 14c1 5-1 10-4 13 3 7 2 16-3 22Z"/><path d="M27 57c9 1 15-3 14-10-1-4-4-6-7-5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>測試集殘差與離群值診斷</h3><span class="badge info">依 |殘差| 排序</span></div>
+        <p class="small muted" id="resNote"></p>
+        <div class="tbl"><table id="resTable"></table></div>
+        <button class="btn ghost" type="button" id="resMore" hidden>顯示全部</button>
+      </div>
+
+      <div class="card">
+        <h3>結果解讀</h3>
+        <ul class="plain" id="interpret"></ul>
+        <div class="card-head"><h3>APA 7 報告段落</h3><button class="btn" type="button" id="copyApa">複製</button></div>
+        <div class="copy-box" id="apa" lang="en"></div>
+        <span class="small muted" id="copyMsg" aria-live="polite"></span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <svg class="sitter" viewBox="0 0 44 62" fill="currentColor" aria-hidden="true"><path d="M12 61c-5-6-6-15-3-22-3-3-5-8-4-13L4 12l8 6c3-1 8-1 11 0l8-6-1 14c1 5-1 10-4 13 3 7 2 16-3 22Z"/><path d="M27 57c9 1 15-3 14-10-1-4-4-6-7-5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></svg>
+  <div class="trail" aria-hidden="true"><svg class="paw" viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="11" rx="3.6" ry="3"/><circle cx="3.6" cy="7" r="1.6"/><circle cx="6.4" cy="4.2" r="1.6"/><circle cx="9.6" cy="4.2" r="1.6"/><circle cx="12.4" cy="7" r="1.6"/></svg><svg class="paw" viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="11" rx="3.6" ry="3"/><circle cx="3.6" cy="7" r="1.6"/><circle cx="6.4" cy="4.2" r="1.6"/><circle cx="9.6" cy="4.2" r="1.6"/><circle cx="12.4" cy="7" r="1.6"/></svg><svg class="paw" viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="11" rx="3.6" ry="3"/><circle cx="3.6" cy="7" r="1.6"/><circle cx="6.4" cy="4.2" r="1.6"/><circle cx="9.6" cy="4.2" r="1.6"/><circle cx="12.4" cy="7" r="1.6"/></svg><svg class="paw" viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="11" rx="3.6" ry="3"/><circle cx="3.6" cy="7" r="1.6"/><circle cx="6.4" cy="4.2" r="1.6"/><circle cx="9.6" cy="4.2" r="1.6"/><circle cx="12.4" cy="7" r="1.6"/></svg></div>
+  <div class="container grid2">
+    <div>
+      <h4>多元線性迴歸探索器</h4>
+      <p>CRISP-DM 多元線性迴歸作業：特徵選擇、精簡模型驗證與統計推論。以純 HTML、CSS、JavaScript 製作，所有計算都在瀏覽器中完成，並與 Python（numpy、scipy、scikit-learn）比對一致。</p>
+    </div>
+    <div>
+      <h4>參考資料與致謝</h4>
+      <ul>
+        <li>版面參考：<a href="https://huanchen1107.github.io/AIoT-DIC2-MultipleLR/" target="_blank" rel="noopener">AIoT-DIC2 Multiple LR Explorer</a></li>
+        <li>統計計算機風格：<a href="https://statsunlock.com/multiple-linear-regression-calculator/" target="_blank" rel="noopener">StatsUnlock Multiple Linear Regression Calculator</a></li>
+        <li>資料集：50 Startups（Kaggle）、Advertising（<a href="https://www.statlearning.com/" target="_blank" rel="noopener">ISLR</a>）、Medical Insurance（<a href="https://github.com/stedy/Machine-Learning-with-R-datasets" target="_blank" rel="noopener">stedy/Machine-Learning-with-R-datasets</a>）、Boston Housing（Harrison &amp; Rubinfeld, 1978；檔案取自 <a href="https://github.com/selva86/datasets" target="_blank" rel="noopener">selva86/datasets</a>）</li>
+        <li>方法論：CRISP-DM（Cross-Industry Standard Process for Data Mining）</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+<script src="model_data.js"></script>
+<script src="regression.js"></script>
+<script src="selection.js"></script>
+<script>
+(function () {
+  const R = window.Regression, D = window.Data, S = window.Select, M = window.MODEL_DATA;
+  const $ = id => document.getElementById(id);
+
+  const BUILTIN = {
+    startups: { name: "50 Startups", file: "50_Startups.csv", target: "Profit", unit: "$",
+      desc: "50 家新創公司的研發、行政、行銷支出與所在州 → 年利潤（Kaggle）", preset: true,
+      criteria: M && M.business ? M.business.success_criteria : null },
+    advertising: { name: "Advertising", file: "datasets/Advertising.csv", target: "sales", unit: "",
+      desc: "200 個市場的電視、廣播、報紙廣告預算（千美元）→ 銷售量（千件），ISLR 教科書資料" },
+    insurance: { name: "Medical Insurance", file: "datasets/insurance.csv", target: "charges", unit: "$",
+      desc: "1,338 位投保人的年齡、性別、BMI、子女數、是否吸菸、地區 → 醫療保險費" },
+    boston: { name: "Boston Housing", file: "datasets/BostonHousing.csv", target: "medv", unit: "",
+      desc: "506 個波士頓地區的犯罪率、平均房間數、低收入人口比例等 13 個變數 → 自有住宅價格中位數 medv（千美元）",
+      exclude: { b: "依各區黑人居民比例計算，帶有種族偏見的假設" },
+      notice: "欄位 b 是依各區黑人居民比例計算的變數，帶有種族偏見的假設，scikit-learn 1.2 起已因此移除這個資料集。這裡預設排除 b；如需重現原始研究可手動勾選。" },
+  };
+
+  const st = { ds: null, algo: "lasso", k: 1, manual: new Set(), alpha: 0.05, mode: "train", resAll: false };
+
+  // ------------------------------------------------------------ helpers
+  function h(tag, attrs = {}, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") e.className = v; else if (k === "text") e.textContent = v;
+      else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else if (v !== false && v != null) e.setAttribute(k, v);
+    }
+    kids.flat().forEach(c => c != null && e.append(c.nodeType ? c : document.createTextNode(String(c))));
+    return e;
+  }
+  const fp = p => (!Number.isFinite(p) ? "—" : p < 0.001 ? "< .001" : p.toFixed(3).replace(/^0/, ""));
+  const fx = (v, d = 4) => (Number.isFinite(v) ? v.toFixed(d) : "—");
+  const fcoef = v => (Math.abs(v) >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : Math.abs(v) >= 1 ? v.toFixed(3) : v.toFixed(4));
+  function yFmt(v, extra = 0) {
+    const ds = st.ds, d = Math.max(0, (ds && ds.yDec) || 0) + extra;
+    const s = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+    return (v < 0 ? "−" : "") + (ds && ds.unit === "$" ? "$" : "") + s;
+  }
+  const shortK = v => (Math.abs(v) >= 10000 ? (v < 0 ? "−" : "") + Math.round(Math.abs(v) / 1000) + "k" : Math.abs(v) >= 100 ? String(Math.round(v)) : String(+v.toFixed(2)));
+  const PAW_SVG = '<svg class="paw" viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="11" rx="3.6" ry="3"/><circle cx="3.6" cy="7" r="1.6"/><circle cx="6.4" cy="4.2" r="1.6"/><circle cx="9.6" cy="4.2" r="1.6"/><circle cx="12.4" cy="7" r="1.6"/></svg>';
+  function paw() { const t = document.createElement("template"); t.innerHTML = PAW_SVG; return t.content.firstChild; }
+  function badge(kind, text, icon) { return h("span", { class: "badge " + kind }, icon === "paw" ? paw() : icon ? h("i", { "aria-hidden": "true", text: icon }) : null, text); }
+
+  const tip = $("tip");
+  function showTip(evt, title, items) {
+    tip.replaceChildren(h("div", { class: "t-title", text: title }), ...items.map(it => h("div", { class: "t-row" }, it.color ? h("i", { style: `background:${it.color}` }) : null, h("b", { text: it.value }), h("span", { text: it.label || "" }))));
+    tip.hidden = false;
+    const w = tip.offsetWidth, ht = tip.offsetHeight;
+    let x = evt.clientX + 14, y = evt.clientY + 14;
+    if (x + w > innerWidth - 8) x = evt.clientX - w - 14;
+    if (y + ht > innerHeight - 8) y = evt.clientY - ht - 14;
+    tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+  }
+  const hideTip = () => { tip.hidden = true; };
+  function bindTip(node, fn) {
+    node.addEventListener("pointermove", e => { const t = fn(e); t && showTip(e, t[0], t[1]); });
+    node.addEventListener("pointerleave", hideTip);
+    node.addEventListener("focus", () => { const r = node.getBoundingClientRect(), ev = { clientX: r.right, clientY: r.top }; const t = fn(ev); t && showTip(ev, t[0], t[1]); });
+    node.addEventListener("blur", hideTip);
+  }
+
+  const NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) { const v = String(attrs[k]); if ((k === "fill" || k === "stroke") && v.startsWith("var(")) e.style.setProperty(k, v); else e.setAttribute(k, v); }
+    if (text != null) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function niceTicks(lo, hi, n = 5) {
+    const span = hi - lo || 1, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n) || 10 * mag;
+    const out = [];
+    for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
+    return { ticks: out, step };
+  }
+  function domain(vals, pad = 0.04, zero = false) {
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    if (zero) lo = Math.min(lo, 0);
+    const p = (hi - lo || Math.abs(hi) || 1) * pad; if (!(zero && lo === 0)) lo -= p; hi += p;
+    const { step } = niceTicks(lo, hi);
+    return [Math.floor(lo / step) * step, Math.ceil(hi / step) * step];
+  }
+  function frame(host, o) {
+    const W = o.w || 560, H = o.h || 300, m = Object.assign({ l: 60, r: 16, t: 12, b: 42 }, o.m || {});
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart", role: "img", "aria-label": o.label });
+    $(host).replaceChildren(svg);
+    const x = v => m.l + (v - o.x[0]) / (o.x[1] - o.x[0]) * (W - m.l - m.r);
+    const y = v => H - m.b - (v - o.y[0]) / (o.y[1] - o.y[0]) * (H - m.t - m.b);
+    const yt = o.yt || niceTicks(o.y[0], o.y[1]).ticks, xt = o.xt || niceTicks(o.x[0], o.x[1], 6).ticks;
+    yt.forEach(t => { el("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), class: "grid" }, svg); el("text", { x: m.l - 6, y: y(t) + 3, "text-anchor": "end" }, svg, (o.yf || shortK)(t)); });
+    xt.forEach(t => el("text", { x: x(t), y: H - m.b + 15, "text-anchor": "middle" }, svg, (o.xf || shortK)(t)));
+    el("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, class: "axis" }, svg);
+    if (o.xl) el("text", { x: (m.l + W - m.r) / 2, y: H - 6, "text-anchor": "middle", class: "t-strong" }, svg, o.xl);
+    if (o.yl) el("text", { x: 12, y: (m.t + H - m.b) / 2, "text-anchor": "middle", class: "t-strong", transform: `rotate(-90 12 ${(m.t + H - m.b) / 2})` }, svg, o.yl);
+    return { svg, x, y, W, H, m };
+  }
+  function dot(g, cx, cy, color, opts = {}) {
+    const grp = el("g", { tabindex: 0 }, g.svg);
+    el("circle", { cx, cy, r: 12, class: "hit" }, grp);
+    if (opts.hollow) el("circle", { cx, cy, r: (opts.r || 4) + 0.5, fill: "var(--surface)", stroke: color, "stroke-width": 2 }, grp);
+    else el("circle", { cx, cy, r: opts.r || 4, fill: color, stroke: "var(--surface)", "stroke-width": opts.r && opts.r < 3.5 ? 1 : 2, "fill-opacity": opts.op || 1 }, grp);
+    if (opts.ring) el("circle", { cx, cy, r: (opts.r || 4) + 4, fill: "none", stroke: "var(--bad)", "stroke-width": 1.5 }, grp);
+    return grp;
+  }
+  function legend(host, items) {
+    $(host).replaceChildren(...items.map(it => h("span", {}, h("i", { class: it.dot ? "dot" : "", style: it.ring ? "background:transparent;border:1.5px solid var(--bad)" : it.hollow ? `background:var(--surface);border:2px solid ${it.hollow}` : `background:${it.color}` }), it.label)));
+  }
+
+  // ------------------------------------------------------------ dataset loading
+  function msg(kind, text) { const m = $("dsMsg"); m.className = "msg " + kind; m.textContent = text; m.hidden = !text; }
+
+  async function loadBuiltin(key) {
+    const cfg = BUILTIN[key];
+    try {
+      const res = await fetch(cfg.file);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setData(await res.text(), Object.assign({ key, source: cfg.file }, cfg));
+    } catch (e) { msg("err", `無法載入內建資料集（${e.message}）。若是直接用 file:// 開啟網頁，請改用本機伺服器（python -m http.server）。`); }
+  }
+  function toRaw(url) {
+    const m = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/);
+    return m ? `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}` : url;
+  }
+  async function loadUrl(url) {
+    url = toRaw(url.trim());
+    if (!/^https?:\/\//.test(url)) { msg("err", "請輸入以 http:// 或 https:// 開頭的網址。"); return; }
+    $("urlBtn").disabled = true; msg("info", "下載中…");
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`伺服器回應 HTTP ${res.status}`);
+      const text = await res.text();
+      if (text.length > 8e6) throw new Error("檔案超過 8 MB");
+      setData(text, { key: "url", name: decodeURIComponent(url.split("/").pop() || "自訂資料集"), source: url });
+    } catch (e) {
+      msg("err", e instanceof TypeError ? "無法讀取這個網址：可能不允許跨網域讀取（CORS）或網址錯誤。請改用 raw.githubusercontent.com 的網址，或下載後用「上傳 CSV」。" : `載入失敗：${e.message}`);
+    } finally { $("urlBtn").disabled = false; }
+  }
+  function loadFile(file) {
+    if (!file) return;
+    if (file.size > 8e6) { msg("err", "檔案超過 8 MB，請先縮小資料。"); return; }
+    const r = new FileReader();
+    r.onload = () => setData(String(r.result), { key: "upload", name: file.name, source: `上傳檔案 ${file.name}` });
+    r.onerror = () => msg("err", "讀取檔案失敗。");
+    r.readAsText(file);
+  }
+
+  function setData(text, meta) {
+    let P;
+    try { P = D.parseCSV(text); } catch (e) { msg("err", "無法解析 CSV：" + e.message); return; }
+    if (P.rows.length > 20000) { msg("err", `資料有 ${P.rows.length.toLocaleString()} 列，超過瀏覽器端上限 20,000 列。`); return; }
+    const cols = D.profile(P.header, P.rows);
+    const numeric = cols.filter(c => c.type === "numeric");
+    if (!numeric.length) { msg("err", "找不到任何數值欄位，無法當作預測目標。"); return; }
+    const target = meta.target && numeric.some(c => c.name === meta.target) ? meta.target : numeric[numeric.length - 1].name;
+    const ds = Object.assign({ header: P.header, rows: P.rows, cols, target, skipped: P.skipped }, meta);
+    ds.pool = new Set(cols.filter(c => c.type !== "id" && c.name !== target && !(meta.exclude && meta.exclude[c.name])).map(c => c.name));
+    if (!ds.pool.size) { msg("err", "除了目標欄以外沒有可用的特徵欄位。"); return; }
+    st.ds = ds;
+    renderDataPanel();
+    prepare(true);
+  }
+
+  function renderDataPanel() {
+    const ds = st.ds;
+    $("colPanel").hidden = false;
+    $("crumb").textContent = ds.name;
+    const ts = $("targetSelect");
+    ts.replaceChildren(...ds.cols.filter(c => c.type === "numeric").map(c => h("option", { value: c.name, text: c.name })));
+    ts.value = ds.target;
+    $("poolChips").replaceChildren(...ds.cols.filter(c => c.name !== ds.target).map(c => {
+      const off = c.type === "id";
+      const cb = h("input", { type: "checkbox", disabled: off || null });
+      cb.checked = ds.pool.has(c.name);
+      cb.addEventListener("change", () => {
+        if (!cb.checked && ds.pool.size === 1) { cb.checked = true; return; }
+        cb.checked ? ds.pool.add(c.name) : ds.pool.delete(c.name);
+        prepare(true);
+      });
+      const why = ds.exclude && ds.exclude[c.name];
+      return h("label", { class: "check-chip" + (off ? " off" : ""), title: c.note || why || "" }, cb, c.name, h("span", { class: "type", text: off ? "排除：" + c.note : why ? "預設排除" : c.type === "numeric" ? "數值" : `類別·${c.levels.length}` }));
+    }));
+    $("dsNotice").textContent = ds.notice || "";
+    $("dsNotice").hidden = !ds.notice;
+    $("preview").replaceChildren(h("thead", {}, h("tr", {}, ds.header.map(c => h("th", { text: c })))), h("tbody", {}, ds.rows.slice(0, 8).map(r => h("tr", {}, r.map(v => h("td", { text: v }))))));
+  }
+
+  // ------------------------------------------------------------ preparation
+  function prepare(resetModel) {
+    const ds = st.ds;
+    $("results").classList.add("busy");
+    setTimeout(() => {
+      try {
+        const feats = ds.cols.filter(c => ds.pool.has(c.name)).map(c => c.name);
+        const { records, dropped } = D.records(ds.header, ds.rows, ds.cols, [...feats, ds.target]);
+        if (records.length < feats.length + 8) throw new Error(`有效資料只有 ${records.length} 列，太少了。`);
+        const E = D.encoder(feats, ds.cols);
+        const X = records.map(E.row), y = records.map(r => r[ds.target]);
+        let train, test, folds;
+        if (ds.preset && M && M.train_index && records.length === M.raw.length) {
+          const pos = new Map(records.map((r, i) => [r.__row, i]));
+          train = [...M.train_index].sort((a, b) => a - b).map(r => pos.get(r));
+          test = [...M.test_index].sort((a, b) => a - b).map(r => pos.get(r));
+          const tpos = new Map(train.map((v, i) => [v, i]));
+          folds = M.cv_folds.map(f => f.map(r => tpos.get(pos.get(r))).sort((a, b) => a - b));
+        } else {
+          ({ train, test } = D.split(records.length, 0.2, 42));
+          folds = D.kfold(train.length, 5, 42);
+        }
+        const Xtr = train.map(i => X[i]), ytr = train.map(i => y[i]), Xte = test.map(i => X[i]), yte = test.map(i => y[i]);
+        const prog = S.run(Xtr, ytr, Xte, yte, folds);
+        const sdY = R.sd(y);
+        Object.assign(ds, { feats, records, dropped, E, X, y, train, test, folds, Xtr, ytr, Xte, yte, prog,
+          yDec: sdY >= 1000 ? 0 : sdY >= 10 ? 1 : 2, hasZeroY: y.some(v => v === 0),
+          best: Object.fromEntries(Object.entries(prog).filter(([, v]) => v).map(([k, v]) => [k, S.bestK(v)])),
+          range: Object.fromEntries(feats.map(f => { const v = records.map(r => r[f]); return [f, typeof v[0] === "number" ? [Math.min(...v), Math.max(...v), v.slice().sort((a, b) => a - b)[Math.floor(v.length / 2)]] : null]; })) });
+        ds.fullHo = holdout([...Array(E.names.length).keys()]);
+        if (resetModel) {
+          st.algo = "lasso"; st.k = ds.best.lasso.oneSd; st.resAll = false;
+          st.manual = new Set(ds.prog.lasso[st.k - 1].cols.map(j => E.group[j]));
+        }
+        st.k = Math.min(st.k, E.names.length);
+        msg("ok", `已載入 ${ds.name}：${ds.rows.length.toLocaleString()} 列 × ${ds.header.length} 欄` + (dropped ? `，排除 ${dropped} 列有缺值的資料` : "") + (ds.skipped ? `，略過 ${ds.skipped} 列欄位數不符的資料` : "") +
+          `。預測目標 ${ds.target}；${feats.length} 個候選特徵（編碼後 ${E.names.length} 欄）；訓練 ${train.length} 列、測試 ${test.length} 列` + (ds.preset ? "（與 main.py 相同的切分）" : "（隨機種子 42）") + "。");
+        $("dsDesc").textContent = ds.desc || ds.source;
+        render();
+      } catch (e) { msg("err", e.message); }
+      finally { $("results").classList.remove("busy"); }
+    }, 20);
+  }
+
+  function holdout(cols) {
+    const ds = st.ds, m = R.lite(S.pick(ds.Xtr, cols), ds.ytr), pred = S.pick(ds.Xte, cols).map(x => m.predict(x));
+    const err = ds.yte.map((v, i) => v - pred[i]);
+    return { pred, r2: R.r2Of(ds.yte, pred), rmse: Math.sqrt(R.mean(err.map(e => e * e))), mae: R.mean(err.map(Math.abs)), mape: ds.hasZeroY ? NaN : R.mean(err.map((e, i) => Math.abs(e / ds.yte[i]))) * 100 };
+  }
+
+  // ------------------------------------------------------------ controls
+  const ALGOS = [...S.METHODS, { key: "compare", title: "比較全部 5 種", sub: "Compare" }, { key: "manual", title: "手動勾選", sub: "Manual" }];
+  $("algoBtns").replaceChildren(...ALGOS.map(a => h("button", { type: "button", "data-a": a.key, onclick: () => {
+    st.algo = a.key;
+    if (st.ds && st.ds.prog && st.ds.prog[a.key]) st.k = st.ds.best[a.key].oneSd;
+    render();
+  } }, a.title, h("small", { text: a.sub }))));
+  $("dsSelect").addEventListener("change", e => {
+    const v = e.target.value;
+    $("urlPanel").hidden = v !== "url"; $("uploadPanel").hidden = v !== "upload";
+    if (BUILTIN[v]) loadBuiltin(v);
+    else msg("info", v === "url" ? "輸入 CSV 網址後按「載入」。已預填作業範例網址。" : "選擇或拖曳一個 CSV 檔案。");
+  });
+  $("urlForm").addEventListener("submit", e => { e.preventDefault(); loadUrl($("urlInput").value); });
+  $("fileInput").addEventListener("change", e => loadFile(e.target.files[0]));
+  const dz = $("dropzone");
+  ["dragenter", "dragover"].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.remove("drag"); }));
+  dz.addEventListener("drop", e => loadFile(e.dataTransfer.files[0]));
+  $("targetSelect").addEventListener("change", e => {
+    const ds = st.ds; ds.target = e.target.value;
+    ds.pool = new Set(ds.cols.filter(c => c.type !== "id" && c.name !== ds.target && !(ds.exclude && ds.exclude[c.name])).map(c => c.name));
+    renderDataPanel(); prepare(true);
+  });
+  $("alpha").addEventListener("change", e => { st.alpha = +e.target.value; render(); });
+  $("mode").addEventListener("change", e => { st.mode = e.target.value; render(); });
+  $("resMore").addEventListener("click", () => { st.resAll = !st.resAll; render(); });
+
+  function activeCols() {
+    const ds = st.ds, algo = st.algo === "compare" ? "lasso" : st.algo;
+    if (algo === "manual") return ds.E.names.map((_, j) => j).filter(j => st.manual.has(ds.E.group[j]));
+    return ds.prog[algo][st.k - 1].cols;
+  }
+
+  // ------------------------------------------------------------ render
+  function render() {
+    const ds = st.ds;
+    if (!ds || !ds.prog) return;
+    hideTip();
+    const E = ds.E, P = ds.prog, p = E.names.length;
+    document.querySelectorAll("#algoBtns button").forEach(b => {
+      const k = b.dataset.a; b.setAttribute("aria-pressed", String(k === st.algo));
+      b.disabled = k !== "compare" && k !== "manual" && !P[k];
+      if (k === "exhaustive") b.title = P[k] ? "" : "欄位太多，窮舉搜尋計算量過大";
+    });
+    const manual = st.algo === "manual", algo = st.algo === "compare" ? null : st.algo;
+    const progAlgo = algo && !manual ? algo : "lasso";
+
+    $("kBtns").hidden = manual; $("manualChips").hidden = !manual;
+    $("kLabel").textContent = manual ? "勾選要放進模型的特徵" : `特徵數 k（k = 1 到 ${p}）` + (st.algo === "compare" ? "：下方係數以 Lasso 的排序為準" : "");
+    if (!manual) {
+      const rows = P[progAlgo], b = ds.best[progAlgo];
+      $("kBtns").replaceChildren(...rows.map((r, i) => {
+        const added = i === 0 ? E.names[r.cols[0]] : r.cols.filter(c => !rows[i - 1].cols.includes(c)).map(c => E.names[c]).join(" ↔ ") || "換組合";
+        const tags = [];
+        if (r.k === b.oneSd) tags.push(h("small", { class: "tag-ok" }, paw(), " 1-SD 精簡"));
+        if (r.k === b.cvBest && r.k !== b.oneSd) tags.push(h("small", { class: "tag-ok", text: "CV 最低" }));
+        if (r.k === p) tags.push(h("small", { class: "tag-warn", text: "全部特徵" }));
+        return h("button", { type: "button", "aria-pressed": String(r.k === st.k), onclick: () => { st.k = r.k; render(); } },
+          h("span", {}, `k = ${r.k} `, ...tags), h("span", { class: "sub", text: (i === 0 ? "" : "+ ") + added }));
+      }));
+    } else {
+      $("manualChips").replaceChildren(...[...new Set(E.group)].map(g => {
+        const cb = h("input", { type: "checkbox" }); cb.checked = st.manual.has(g);
+        cb.addEventListener("change", () => { if (!cb.checked && st.manual.size === 1) { cb.checked = true; return; } cb.checked ? st.manual.add(g) : st.manual.delete(g); render(); });
+        return h("label", { class: "check-chip" }, cb, g);
+      }));
+    }
+
+    const cols = activeCols(), names = cols.map(j => E.names[j]);
+    const ids = st.mode === "train" ? ds.train : [...ds.train, ...ds.test].sort((a, b) => a - b);
+    let fit;
+    try { fit = R.fit(ids.map(i => cols.map(j => ds.X[i][j])), ids.map(i => ds.y[i]), st.alpha); }
+    catch (e) { msg("err", "這組特徵完全共線，無法估計。請換一組特徵。"); return; }
+    const ho = holdout(cols), cv = S.cvR2(ds.Xtr, ds.ytr, cols, ds.folds), cvr = S.cvRMSE(ds.Xtr, ds.ytr, cols, ds.folds);
+    const yName = ds.target;
+
+    // hero
+    const bestAll = Object.entries(P).filter(([, v]) => v).flatMap(([k, v]) => v.map(r => ({ k, r }))).reduce((a, b) => (b.r.cvRmse < a.r.cvRmse ? b : a));
+    $("heroText").replaceChildren("比較 5 種特徵選擇演算法（", h("b", { text: "Lasso、Forward SFS、RFE、ElasticNet、Exhaustive Search" }), `）在 k = 1 到 ${p} 個特徵下的表現，並對任一模型做完整的 OLS 推論。目前資料集：`, h("b", { text: ds.name }), "，預測 ", h("b", { text: yName }), "。");
+    $("heroChips").replaceChildren(
+      h("span", { class: "hero-chip", text: `${ds.name} · ${ds.records.length.toLocaleString()} 列` }),
+      h("span", { class: "hero-chip", text: `${p} 個候選欄位` }),
+      h("span", { class: "hero-chip", text: `CV 最佳：${S.METHODS.find(m => m.key === bestAll.k).title} k=${bestAll.r.k}（CV RMSE ${yFmt(bestAll.r.cvRmse)}）` }),
+      h("span", { class: "hero-chip", text: `全部特徵：Test RMSE ${yFmt(P.lasso[p - 1].testRmse)}` }));
+
+    // KPIs
+    const full = ds.fullHo, isOneSd = !manual && algo && ds.best[progAlgo].oneSd === st.k;
+    const kpi = (label, value, sub, color, b) => h("div", { class: "kpi", style: `--kc:${color}` }, h("div", { class: "k-head" }, h("span", { class: "k-label", text: label }), b || null), h("div", { class: "k-value", text: value }), h("div", { class: "k-sub", text: sub }));
+    $("kpis").replaceChildren(
+      kpi("Test RMSE", yFmt(ho.rmse), `全部特徵 ${yFmt(full.rmse)}；越低越好`, "var(--primary)", isOneSd ? badge("ok", "1-SD 精簡", "paw") : ho.rmse <= full.rmse + 1e-9 ? badge("ok", "≤ 全部特徵") : badge("warn", "> 全部特徵")),
+      kpi("Test R²", fx(ho.r2), `測試集解釋力；全部特徵 ${fx(full.r2)}`, "var(--c3)", badge(ho.r2 >= 0.9 ? "ok" : ho.r2 >= 0.7 ? "info" : "warn", `${(ho.r2 * 100).toFixed(1)}% FIT`)),
+      kpi("Adjusted R²", fx(fit.adjR2), `${st.mode === "train" ? "訓練集" : "全部資料"}擬合，懲罰多餘特徵`, "var(--c5)"),
+      kpi("Mean Absolute Error", yFmt(ho.mae), "測試集平均預測誤差", "var(--c4)"),
+      kpi(`F(${fit.k}, ${fit.dfe})`, fit.F.toLocaleString("en-US", { maximumFractionDigits: 1 }), `5-fold CV R² ${fx(cv.mean, 3)} ± ${fx(cv.std, 3)}`, "var(--c2)", badge(fit.Fp < st.alpha ? "ok" : "bad", `p ${fp(fit.Fp)}`)));
+
+    $("activeChips").replaceChildren(h("b", { class: "small", text: `使用中的特徵（${names.length}）：` }), ...names.map(n => h("span", { class: "pchip", text: n })));
+    $("activeNote").textContent = manual ? "手動模式：勾選的類別變數會放入它全部的 dummy 欄位。" :
+      `${S.METHODS.find(m => m.key === progAlgo).title} 排序下的前 ${st.k} 個特徵；訓練集 5-fold CV RMSE ${yFmt(cvr)}。` + (isOneSd ? "這是 1-SD 精簡原則選出的 k：CV 誤差和最佳值相差不到一個標準差，但特徵最少。" : "");
+
+    const crit = ds.criteria;
+    $("criteriaCard").hidden = !(crit && ds.key === "startups");
+    if (!$("criteriaCard").hidden) {
+      const c3 = [["測試集 R²", `≥ ${crit.test_R2_min}`, ho.r2 >= crit.test_R2_min, fx(ho.r2)], ["5-fold CV R²", `≥ ${crit.cv_R2_min}`, cv.mean >= crit.cv_R2_min, fx(cv.mean)], ["MAPE", `≤ ${crit.MAPE_max_pct}%`, ho.mape <= crit.MAPE_max_pct, fx(ho.mape, 2) + "%"]];
+      $("criteria").replaceChildren(...c3.map(c => h("div", { class: "check" }, h("div", { class: "row" }, h("b", { text: c[0] }), c[2] ? badge("ok", "達標", "✓") : badge("bad", "未達標", "✕")), h("div", { class: "row" }, h("span", { class: "mono", style: "font-size:1.2rem;font-weight:700", text: c[3] }), h("span", { class: "small muted", text: "標準 " + c[1] })))));
+    }
+
+    renderProgress(progAlgo);
+    renderCompare();
+
+    $("equation").textContent = `${yName} = ` + fcoef(fit.coef[0]) + names.map((n, i) => { const c = fit.coef[i + 1]; return ` ${c < 0 ? "−" : "+"} ${fcoef(Math.abs(c))} × (${n})`; }).join("");
+
+    const ciL = `${Math.round((1 - st.alpha) * 100)}% CI`;
+    $("coefNote").textContent = `${st.mode === "train" ? "訓練集" : "全部資料"} n = ${fit.n}，殘差自由度 ${fit.dfe}`;
+    $("coefTable").replaceChildren(
+      h("thead", {}, h("tr", {}, ["Predictor", "Estimate (β)", "Std. Error", "t-Stat", "p-Value", ciL, "Std. β", "VIF"].map((t, i) => h("th", { class: i ? "n" : "", text: t })))),
+      h("tbody", {}, ["Intercept (β₀)", ...names].map((n, i) => {
+        const sig = i && fit.p[i] < st.alpha, vif = i ? fit.vif[i - 1] : null, base = i ? E.baseline[E.group[cols[i - 1]]] : null;
+        return h("tr", { class: sig ? "sig" : "" }, h("td", { class: "mono", text: n + (base ? `（vs ${base}）` : "") }),
+          h("td", { class: "n", text: fcoef(fit.coef[i]) }), h("td", { class: "n", text: fcoef(fit.se[i]) }), h("td", { class: "n", text: fit.t[i].toFixed(3) }),
+          h("td", { class: "n" }, i ? (sig ? badge("ok", fp(fit.p[i])) : badge("warn", fp(fit.p[i]) + "（n.s.）")) : fp(fit.p[i])),
+          h("td", { class: "n", text: `[${fcoef(fit.ciLo[i])}, ${fcoef(fit.ciHi[i])}]` }), h("td", { class: "n", text: i ? fit.stdBeta[i - 1].toFixed(3) : "—" }),
+          h("td", { class: "n" }, i ? (vif > 10 ? badge("bad", vif.toFixed(2)) : vif > 5 ? badge("warn", vif.toFixed(2)) : `${vif.toFixed(2)}（Safe）`) : "—"));
+      })));
+    $("anovaTable").replaceChildren(
+      h("thead", {}, h("tr", {}, ["ANOVA", "SS", "df", "MS", "F", "p-Value"].map((t, i) => h("th", { class: i ? "n" : "", text: t })))),
+      h("tbody", {},
+        h("tr", {}, h("td", { text: "迴歸 Regression" }), h("td", { class: "n", text: fit.ssr.toExponential(4) }), h("td", { class: "n", text: fit.k }), h("td", { class: "n", text: (fit.ssr / fit.k).toExponential(4) }), h("td", { class: "n", text: fit.F.toFixed(2) }), h("td", { class: "n", text: fp(fit.Fp) })),
+        h("tr", {}, h("td", { text: "殘差 Residual" }), h("td", { class: "n", text: fit.sse.toExponential(4) }), h("td", { class: "n", text: fit.dfe }), h("td", { class: "n", text: fit.mse.toExponential(4) }), h("td", {}), h("td", {})),
+        h("tr", {}, h("td", { text: "總和 Total" }), h("td", { class: "n", text: fit.sst.toExponential(4) }), h("td", { class: "n", text: fit.n - 1 }), h("td", {}), h("td", {}), h("td", {}))));
+
+    renderDiagnostics(fit, ho, ids, names, cols);
+    renderPredictor(cols);
+    renderResiduals(ho);
+    renderText(fit, ho, cv, names);
+  }
+
+  function renderProgress(algo) {
+    const ds = st.ds, P = ds.prog, keys = S.METHODS.map(m => m.key).filter(k => P[k]);
+    const showAll = st.algo === "compare", series = showAll ? keys : [algo];
+    const colors = { lasso: "var(--c1)", sfs: "var(--c2)", rfe: "var(--c3)", enet: "var(--c4)", exhaustive: "var(--c5)" };
+    const p = ds.E.names.length, xs = [0.6, p + 0.4], xt = [...Array(p).keys()].map(i => i + 1);
+    const leg = series.map(k => ({ color: showAll ? colors[k] : "var(--c1)", label: S.METHODS.find(m => m.key === k).title }));
+    const legItems = showAll ? leg : [...leg, { color: "var(--mark-cur)", dot: true, label: "目前的 k" }];
+    legend("legRmse", legItems); legend("legR2", legItems);
+    [["chRmse", "testRmse", "Test RMSE", v => yFmt(v)], ["chR2", "testR2", "Test R²", v => v.toFixed(4)]].forEach(([host, key, yl, f]) => {
+      const vals = series.flatMap(k => P[k].map(r => r[key]));
+      const g = frame(host, { x: xs, y: domain(vals, 0.08), xt, xf: String, yf: key === "testR2" ? v => v.toFixed(3) : shortK, xl: "Number of Features (k)", yl, label: `${yl} 對特徵數` });
+      if (!showAll && st.algo !== "manual") el("rect", { x: g.x(st.k) - 14, y: g.m.t, width: 28, height: g.H - g.m.t - g.m.b, rx: 6, fill: "var(--accent)", "fill-opacity": 0.12 }, g.svg);
+      series.forEach((k, si) => {
+        const c = showAll ? colors[k] : "var(--c1)", pts = P[k].map(r => [g.x(r.k), g.y(r[key])]);
+        el("polyline", { points: pts.map(q => q.join(",")).join(" "), fill: "none", stroke: c, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, g.svg);
+        P[k].forEach((r, i) => { const cur = !showAll && r.k === st.k && st.algo !== "manual"; el("circle", { cx: pts[i][0] + (showAll ? (si - 2) * 2.5 : 0), cy: pts[i][1], r: cur ? 6 : 4, fill: cur ? "var(--mark-cur)" : c, stroke: "var(--surface)", "stroke-width": 2 }, g.svg); });
+      });
+      const cross = el("line", { y1: g.m.t, y2: g.H - g.m.b, stroke: "var(--axis)", visibility: "hidden" }, g.svg);
+      const hit = el("rect", { x: g.m.l, y: g.m.t, width: g.W - g.m.l - g.m.r, height: g.H - g.m.t - g.m.b, class: "hit", tabindex: 0 }, g.svg);
+      const kAt = e => { const r = g.svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * g.W; return Math.min(p, Math.max(1, Math.round(xs[0] + (px - g.m.l) / (g.W - g.m.l - g.m.r) * (xs[1] - xs[0])))); };
+      bindTip(hit, e => {
+        const kk = kAt(e); cross.setAttribute("x1", g.x(kk)); cross.setAttribute("x2", g.x(kk)); cross.setAttribute("visibility", "visible");
+        return [`k = ${kk} · ${yl}`, series.map(s => { const r = P[s][kk - 1]; return { color: showAll ? colors[s] : "var(--c1)", value: f(r[key]), label: `${S.METHODS.find(m => m.key === s).title}：${r.cols.map(c => ds.E.names[c]).join(", ")}` }; })];
+      });
+      hit.addEventListener("pointerleave", () => cross.setAttribute("visibility", "hidden"));
+      hit.addEventListener("click", e => { if (st.algo === "manual") return; st.k = kAt(e); if (st.algo === "compare") st.algo = "lasso"; render(); });
+    });
+  }
+
+  function renderCompare() {
+    const ds = st.ds, P = ds.prog;
+    const go = (key, k) => { st.algo = key; st.k = k; render(); };
+    $("compTable").replaceChildren(
+      h("thead", {}, h("tr", {}, ["演算法", "k（CV 最低）", "k（1-SD）", "Selected Features（1-SD）", "CV RMSE", "Test RMSE", "Test R²"].map((t, i) => h("th", { class: i && i !== 3 ? "n" : "", text: t })))),
+      h("tbody", {}, S.METHODS.map(m => {
+        if (!P[m.key]) return h("tr", {}, h("td", { text: m.title }), h("td", { colspan: 6, class: "muted", text: "欄位太多，略過窮舉搜尋" }));
+        const b = ds.best[m.key], r = P[m.key][b.oneSd - 1];
+        return h("tr", { class: st.algo === m.key ? "cur" : "", style: "cursor:pointer", tabindex: 0, onclick: () => go(m.key, b.oneSd), onkeydown: e => { if (e.key === "Enter") go(m.key, b.oneSd); } },
+          h("td", { text: m.title }), h("td", { class: "n", text: b.cvBest }), h("td", { class: "n", text: b.oneSd }), h("td", {}, r.cols.map(c => h("span", { class: "pchip", style: "margin:1px 3px 1px 0;display:inline-block", text: ds.E.names[c] }))),
+          h("td", { class: "n", text: yFmt(r.cvRmse) }), h("td", { class: "n", text: yFmt(r.testRmse) }), h("td", { class: "n", text: r.testR2.toFixed(4) }));
+      })));
+  }
+
+  function renderDiagnostics(fit, ho, ids, names, cols) {
+    const ds = st.ds, haveTest = st.mode === "train", n = ids.length;
+    const fitPts = ids.map((id, i) => ({ id, actual: ds.y[id], pred: fit.fitted[i], resid: fit.resid[i], cook: fit.cook[i] }));
+    const testPts = haveTest ? ds.test.map((id, i) => ({ id, actual: ds.y[id], pred: ho.pred[i] })) : [];
+    const cut = 4 / n, small = n > 300;
+    const label = id => `第 ${ds.records[id].__row + 1} 列`;
+    const dotOpts = extra => Object.assign(small ? { r: 2.5, op: 0.7 } : {}, extra || {});
+    legend("legAvp", [{ color: "var(--train)", dot: true, label: haveTest ? "訓練集（擬合，實心）" : "全部資料（擬合）" }, ...(haveTest ? [{ hollow: "var(--test)", dot: true, label: "測試集（預測，空心）" }] : [])]);
+    const dm = domain([...fitPts, ...testPts].flatMap(q => [q.actual, q.pred]), 0.03);
+    let g = frame("avp", { x: dm, y: dm, xl: `Actual ${ds.target}`, yl: `Predicted ${ds.target}`, label: "實際值對預測值" });
+    el("line", { x1: g.x(dm[0]), y1: g.y(dm[0]), x2: g.x(dm[1]), y2: g.y(dm[1]), stroke: "var(--faint)", "stroke-dasharray": "4 4" }, g.svg);
+    [...fitPts.map(q => [q, "var(--train)", "擬合", false]), ...testPts.map(q => [q, "var(--test)", "測試", true])].forEach(([q, c, lab, hollow]) =>
+      bindTip(dot(g, g.x(q.actual), g.y(q.pred), c, dotOpts({ hollow })), () => [`${label(q.id)} · ${lab}`, [{ value: yFmt(q.pred, 1), label: "預測" }, { value: yFmt(q.actual, 1), label: "實際" }, { value: yFmt(q.actual - q.pred, 1), label: "誤差" }]]));
+
+    legend("legRvf", [{ color: "var(--train)", dot: true, label: "殘差" }, ...(small ? [] : [{ ring: true, label: `影響點（Cook's D > 4/n = ${cut.toFixed(3)}）` }])]);
+    const rmax = Math.max(...fitPts.map(q => Math.abs(q.resid)));
+    g = frame("rvf", { x: domain(fitPts.map(q => q.pred), 0.04), y: domain([-rmax, rmax], 0.08), xl: `Fitted ${ds.target}`, yl: "Residual", label: "殘差對預測值" });
+    el("line", { x1: g.m.l, x2: g.W - g.m.r, y1: g.y(0), y2: g.y(0), stroke: "var(--faint)", "stroke-dasharray": "4 4" }, g.svg);
+    fitPts.forEach(q => bindTip(dot(g, g.x(q.pred), g.y(q.resid), "var(--train)", dotOpts({ ring: q.cook > cut && !small })), () => [label(q.id), [{ value: yFmt(q.resid, 1), label: "殘差" }, { value: yFmt(q.pred, 1), label: "預測值" }, { value: q.cook.toFixed(3), label: "Cook's D" }]]));
+
+    (function () {
+      const Xf = ids.map(i => cols.map(j => ds.X[i][j])), sx = cols.map((_, j) => R.sd(Xf.map(r => r[j]))), sy = R.sd(ids.map(i => ds.y[i]));
+      const items = names.map((nm, j) => ({ nm, b: fit.stdBeta[j], lo: fit.ciLo[j + 1] * sx[j] / sy, hi: fit.ciHi[j + 1] * sx[j] / sy, sig: fit.p[j + 1] < st.alpha }));
+      const lim = Math.max(...items.flatMap(i => [Math.abs(i.lo), Math.abs(i.hi)]), 0.1), W = 560, rowH = 32, lw = 150, rp = 60, H = items.length * rowH + 36;
+      const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart", role: "img", "aria-label": "標準化係數" });
+      $("betas").replaceChildren(svg);
+      const x = v => lw + (v + lim) / (2 * lim) * (W - lw - rp);
+      niceTicks(-lim, lim, 4).ticks.forEach(t => { el("line", { x1: x(t), x2: x(t), y1: 4, y2: H - 26, class: "grid" }, svg); el("text", { x: x(t), y: H - 10, "text-anchor": "middle" }, svg, t.toFixed(2)); });
+      el("line", { x1: x(0), x2: x(0), y1: 4, y2: H - 26, class: "axis" }, svg);
+      items.forEach((it, i) => {
+        const yc = 8 + i * rowH + rowH / 2, grp = el("g", { tabindex: 0 }, svg);
+        el("rect", { x: 0, y: yc - rowH / 2, width: W, height: rowH, class: "hit" }, grp);
+        el("text", { x: lw - 8, y: yc + 4, "text-anchor": "end", class: "t-strong" }, grp, it.nm.length > 20 ? it.nm.slice(0, 19) + "…" : it.nm);
+        el("rect", { x: x(Math.min(0, it.b)), y: yc - 8, width: Math.max(1, Math.abs(x(it.b) - x(0))), height: 16, rx: 3, fill: it.b >= 0 ? "var(--div-pos)" : "var(--div-neg)", "fill-opacity": it.sig ? 0.9 : 0.35 }, grp);
+        el("line", { x1: x(it.lo), x2: x(it.hi), y1: yc, y2: yc, stroke: "var(--text)", "stroke-width": 1.5 }, grp);
+        [it.lo, it.hi].forEach(v => el("line", { x1: x(v), x2: x(v), y1: yc - 5, y2: yc + 5, stroke: "var(--text)", "stroke-width": 1.5 }, grp));
+        el("text", { x: W - rp + 8, y: yc + 4 }, grp, it.b.toFixed(3));
+        bindTip(grp, () => [it.nm, [{ value: it.b.toFixed(3), label: "標準化 β" }, { value: `[${it.lo.toFixed(3)}, ${it.hi.toFixed(3)}]`, label: "CI" }, { value: it.sig ? "顯著" : "不顯著", label: `α = ${st.alpha}` }]]);
+      });
+    })();
+
+    (function () {
+      const res = fit.resid, sdv = R.sd(res), mu = R.mean(res), nb = Math.min(30, Math.max(6, Math.ceil(Math.sqrt(res.length)) + 1));
+      const lo = Math.min(...res), hi = Math.max(...res), bw = (hi - lo) / nb || 1;
+      const bins = Array.from({ length: nb }, (_, i) => ({ a: lo + i * bw, b: lo + (i + 1) * bw, n: 0 }));
+      res.forEach(r => { bins[Math.min(nb - 1, Math.floor((r - lo) / bw))].n++; });
+      const pdf = v => Math.exp(-((v - mu) ** 2) / (2 * sdv * sdv)) / (sdv * Math.sqrt(2 * Math.PI)) * res.length * bw;
+      const ymax = Math.ceil(Math.max(...bins.map(b => b.n), pdf(mu)) * 1.15);
+      const g = frame("hist", { x: [lo - bw * 0.5, hi + bw * 0.5], y: [0, ymax], yt: niceTicks(0, ymax, 4).ticks.filter(Number.isInteger), yf: String, xl: "Residual", yl: "筆數", label: "殘差分布" });
+      bins.forEach(b => {
+        const grp = el("g", { tabindex: 0 }, g.svg);
+        el("rect", { x: g.x(b.a), y: g.m.t, width: g.x(b.b) - g.x(b.a), height: g.H - g.m.t - g.m.b, class: "hit" }, grp);
+        if (b.n) el("rect", { x: g.x(b.a) + 1, y: g.y(b.n), width: Math.max(1, g.x(b.b) - g.x(b.a) - 2), height: g.y(0) - g.y(b.n), rx: 3, fill: "var(--train)", "fill-opacity": 0.85 }, grp);
+        bindTip(grp, () => [`殘差 ${yFmt(b.a)} 到 ${yFmt(b.b)}`, [{ value: String(b.n), label: "筆" }]]);
+      });
+      el("polyline", { points: Array.from({ length: 60 }, (_, i) => { const v = lo - bw * 0.5 + i / 59 * (hi - lo + bw); return `${g.x(v)},${g.y(pdf(v))}`; }).join(" "), fill: "none", stroke: "var(--curve)", "stroke-width": 2 }, g.svg);
+    })();
+
+    const T = fit.tests, A = st.alpha, maxVif = Math.max(...fit.vif), infl = fitPts.filter(q => q.cook > cut);
+    const checks = [
+      Number.isFinite(T.resetP) ? ["線性 Linearity", `Ramsey RESET：F = ${T.resetF.toFixed(2)}, p = ${fp(T.resetP)}`, T.resetP >= A ? "ok" : "bad", T.resetP >= A ? "加入 ŷ²、ŷ³ 沒有顯著改善，線性形式合適。" : "加入 ŷ²、ŷ³ 顯著改善，可能存在非線性關係。"] : ["線性 Linearity", "Ramsey RESET：無法計算", "warn", "模型只有類別變數，預測值種類太少，無法檢定。"],
+      ["同質變異 Homoscedasticity", `Breusch-Pagan：LM = ${T.bp.toFixed(2)}, p = ${fp(T.bpP)}`, T.bpP >= A ? "ok" : "bad", T.bpP >= A ? "殘差變異大致固定。" : "殘差變異隨特徵改變（異質變異），係數標準誤可能不可靠。"],
+      ["常態性 Normality", `Jarque-Bera：JB = ${T.jb.toFixed(2)}, p = ${fp(T.jbP)}`, T.jbP >= A ? "ok" : "bad", `偏態 ${T.skew.toFixed(2)}、峰態 ${T.kurt.toFixed(2)}。` + (T.jbP >= A ? "殘差接近常態。" : "殘差偏離常態。")],
+      ["誤差獨立 Independence", `Durbin-Watson：DW = ${T.dw.toFixed(2)}`, T.dw >= 1.5 && T.dw <= 2.5 ? "ok" : "warn", "依資料列順序計算；若資料事先排序（例如 50 Startups 依利潤排序），DW 會受影響，僅供參考。"],
+      ["無共線性 Multicollinearity", `最大 VIF = ${maxVif.toFixed(2)}`, maxVif > 10 ? "bad" : maxVif > 5 ? "warn" : "ok", names.length === 1 ? "只有一個欄位，不會有共線性。" : maxVif > 10 ? "VIF > 10，係數不可靠。" : maxVif > 5 ? "VIF 介於 5 到 10，要留意。" : "所有 VIF ≤ 5。"],
+      ["影響點 Influential points", `Cook's D > ${cut.toFixed(3)}：${infl.length} 筆`, infl.length ? "warn" : "ok", infl.length ? (infl.length <= 8 ? `${infl.map(q => label(q.id)).join("、")} 影響較大。` : `共 ${infl.length} 筆，占 ${(infl.length / n * 100).toFixed(1)}%。`) : "沒有明顯影響點。"],
+    ];
+    $("assumptions").replaceChildren(...checks.map(c => h("div", { class: "check" }, h("div", { class: "row" }, h("b", { text: c[0] }), badge(c[2], c[2] === "ok" ? "通過" : c[2] === "warn" ? "注意" : "未通過", c[2] === "ok" ? "✓" : c[2] === "warn" ? "!" : "✕")), h("span", { class: "small mono muted", text: c[1] }), h("span", { class: "small", text: c[3] }))));
+  }
+
+  // ------------------------------------------------------------ predictor
+  const inputs = {};
+  let inputsFor = null, predModel = null;
+  function renderPredictor(cols) {
+    const ds = st.ds, E = ds.E, all = [...ds.train, ...ds.test];
+    predModel = R.fit(all.map(i => cols.map(j => ds.X[i][j])), all.map(i => ds.y[i]), st.alpha);
+    predModel.cols = cols;
+    if (inputsFor !== ds) {
+      Object.keys(inputs).forEach(k => delete inputs[k]); inputsFor = ds;
+      ds.feats.forEach(f => { const rg = ds.range[f]; inputs[f] = rg ? rg[2] : ds.cols.find(c => c.name === f).levels[0]; });
+    }
+    const used = new Set(cols.map(j => E.group[j]));
+    $("sliders").replaceChildren(...ds.feats.map(f => {
+      const rg = ds.range[f], on = used.has(f), id = "in-" + f.replace(/\W+/g, "_");
+      let ctl;
+      if (rg) {
+        const span = rg[1] - rg[0] || 1, lo = rg[0] >= 0 ? Math.max(0, rg[0] - span * 0.2) : rg[0] - span * 0.2, hi = rg[1] + span * 0.2;
+        const step = span >= 1000 ? Math.pow(10, Math.floor(Math.log10(span)) - 2) : span >= 10 ? 0.1 : 0.01;
+        ctl = h("input", { type: "range", id, min: lo, max: hi, step, value: inputs[f] });
+        ctl.addEventListener("input", () => { inputs[f] = +ctl.value; updatePred(); });
+      } else {
+        const c = ds.cols.find(c => c.name === f);
+        ctl = h("select", { id }, c.levels.map((l, i) => h("option", { value: l, text: l + (i === 0 ? "（Reference）" : "") })));
+        ctl.value = inputs[f];
+        ctl.addEventListener("change", () => { inputs[f] = ctl.value; updatePred(); });
+      }
+      return h("div", { class: "slider", "data-f": f, style: on ? "" : "opacity:.45" }, h("label", { for: id }, h("span", { text: f }), h("span", { class: "mono" })), ctl, h("span", { class: "note" }));
+    }));
+    $("predLabel").textContent = `預測 ${ds.target}`;
+    updatePred();
+  }
+  function updatePred() {
+    const ds = st.ds, E = ds.E, m = predModel;
+    if (!m) return;
+    const used = new Set(m.cols.map(j => E.group[j]));
+    document.querySelectorAll("#sliders .slider").forEach(s => {
+      const f = s.dataset.f, rg = ds.range[f];
+      if (rg) s.querySelector(".mono").textContent = (+inputs[f]).toLocaleString("en-US", { maximumFractionDigits: 2 });
+      const out = rg && (inputs[f] < rg[0] || inputs[f] > rg[1]);
+      s.querySelector(".note").textContent = !used.has(f) ? "未在模型中" : out ? `超出資料範圍（${rg[0].toLocaleString()}–${rg[1].toLocaleString()}），屬外插` : "";
+    });
+    const full = E.row(inputs), x = m.cols.map(j => full[j]), iv = m.interval(x);
+    $("predValue").textContent = yFmt(iv.yhat, ds.yDec === 0 ? 0 : 1);
+    $("predRange").textContent = `${Math.round((1 - m.alpha) * 100)}% 預測區間 ${yFmt(iv.piLo)} 到 ${yFmt(iv.piHi)}（用全部 ${m.n} 列擬合）`;
+    $("predParts").textContent = "截距 " + yFmt(m.coef[0]) + " ｜ " + m.cols.map((j, i) => { const v = m.coef[i + 1] * x[i]; return `${E.names[j]}: ${v >= 0 ? "+" : ""}${yFmt(v)}`; }).join(" ｜ ");
+  }
+
+  function renderResiduals(ho) {
+    const ds = st.ds, rows = ds.test.map((id, i) => ({ id, a: ds.y[id], p: ho.pred[i], r: ds.y[id] - ho.pred[i] })).sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+    const lim = st.resAll ? rows.length : Math.min(10, rows.length);
+    $("resNote").textContent = `測試集共 ${rows.length} 列（沒有參與訓練）。|殘差| 大於測試集 RMSE（${yFmt(ho.rmse)}）標為「偏高」。`;
+    $("resTable").replaceChildren(
+      h("thead", {}, h("tr", {}, ["Rank", "Sample", "Actual", "Predicted", "Residual", "Abs Error", "% Error", "Status"].map((t, i) => h("th", { class: i > 1 && i < 7 ? "n" : "", text: t })))),
+      h("tbody", {}, rows.slice(0, lim).map((q, i) => h("tr", {}, h("td", { text: `#${i + 1}` }), h("td", { text: `第 ${ds.records[q.id].__row + 1} 列` }), h("td", { class: "n", text: yFmt(q.a, 1) }), h("td", { class: "n", text: yFmt(q.p, 1) }),
+        h("td", { class: "n " + (q.r >= 0 ? "pos" : "neg"), text: (q.r >= 0 ? "+" : "") + yFmt(q.r, 1) }), h("td", { class: "n", text: yFmt(Math.abs(q.r), 1) }), h("td", { class: "n", text: q.a !== 0 ? (Math.abs(q.r / q.a) * 100).toFixed(2) + "%" : "—" }),
+        h("td", {}, Math.abs(q.r) > ho.rmse ? badge("warn", "偏高", "●") : badge("ok", "正常", "●"))))));
+    $("resMore").hidden = rows.length <= 10;
+    $("resMore").textContent = st.resAll ? "只顯示前 10 列" : `顯示全部 ${rows.length} 列`;
+  }
+
+  function renderText(fit, ho, cv, names) {
+    const ds = st.ds, A = st.alpha, yN = ds.target;
+    const sigN = names.filter((_, j) => fit.p[j + 1] < A), nsN = names.filter((_, j) => fit.p[j + 1] >= A);
+    const top = fit.stdBeta.reduce((bi, v, j, a) => (Math.abs(v) > Math.abs(a[bi]) ? j : bi), 0);
+    $("interpret").replaceChildren(...[
+      `整體模型${fit.Fp < A ? "顯著" : "不顯著"}：F(${fit.k}, ${fit.dfe}) = ${fit.F.toFixed(2)}，p ${fp(fit.Fp)}，解釋了 ${(fit.r2 * 100).toFixed(1)}% 的 ${yN} 變異（調整後 ${(fit.adjR2 * 100).toFixed(1)}%）。`,
+      sigN.length ? `顯著的變數：${sigN.join("、")}。影響最大的是 ${names[top]}（標準化 β = ${fit.stdBeta[top].toFixed(3)}）。` : "沒有任何變數達到顯著。",
+      `${names[top]} 每增加 1 單位，在其他變數不變下，${yN} 平均${fit.coef[top + 1] >= 0 ? "增加" : "減少"} ${fcoef(Math.abs(fit.coef[top + 1]))}。`,
+      nsN.length ? `${nsN.join("、")} 不顯著（p ≥ ${A}），依 backward elimination 可以考慮移除。` : "所有變數都顯著。",
+      `在 ${ds.test.length} 筆測試資料上，平均誤差 ${yFmt(ho.mae)}` + (Number.isFinite(ho.mape) ? `（MAPE ${ho.mape.toFixed(1)}%）` : "") + `，Test R² = ${ho.r2.toFixed(3)}；5-fold CV R² = ${cv.mean.toFixed(3)}。`,
+    ].map(t => h("li", { text: t })));
+    const pT = p => (p < 0.001 ? "p < .001" : `p = ${p.toFixed(3).replace(/^0/, "")}`), r3 = v => v.toFixed(3).replace(/^(-?)0\./, "$1.");
+    $("apa").textContent = `A multiple linear regression was conducted to predict ${yN} from ${names.join(", ")} (${ds.name} dataset, n = ${fit.n}). ` +
+      `The overall model was ${fit.Fp < A ? "statistically significant" : "not statistically significant"}, F(${fit.k}, ${fit.dfe}) = ${fit.F.toFixed(2)}, ${pT(fit.Fp)}, R² = ${r3(fit.r2)}, adjusted R² = ${r3(fit.adjR2)}. ` +
+      names.map((n, j) => `${n} (b = ${fcoef(fit.coef[j + 1])}, t(${fit.dfe}) = ${fit.t[j + 1].toFixed(2)}, ${pT(fit.p[j + 1])})`).join("; ") + ". " +
+      `On a held-out test set of ${ds.test.length} observations, the model achieved R² = ${r3(ho.r2)} and RMSE = ${yFmt(ho.rmse)}.`;
+  }
+
+  $("copyApa").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText($("apa").textContent); $("copyMsg").textContent = "已複製。"; }
+    catch { const r = document.createRange(); r.selectNodeContents($("apa")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); $("copyMsg").textContent = "無法直接複製，已選取文字，請按 Ctrl/⌘ + C。"; }
+  });
+
+  loadBuiltin("startups");
+})();
+</script>
+</body>
+</html>

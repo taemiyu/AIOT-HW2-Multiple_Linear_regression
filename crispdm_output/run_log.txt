@@ -1,0 +1,242 @@
+
+======================================================================
+PHASE 1: BUSINESS UNDERSTANDING
+======================================================================
+objective: Help a venture capital fund estimate a startup's annual profit from its spending profile and location.
+business_questions: ['Which spending category (R&D, Administration, Marketing) drives profit most?', 'Does the state where the startup operates affect profit?', 'How accurately can profit be predicted for a new startup?']
+data_mining_goal: Build a multiple linear regression model Profit = f(R&D, Admin, Marketing, State).
+success_criteria: {'test_R2_min': 0.9, 'cv_R2_min': 0.85, 'MAPE_max_pct': 10.0}
+
+--- 1.2 Situation assessment ---
+resources: One public CSV (50 rows), Python + scikit-learn.
+assumptions: Spend figures are annual and comparable across startups.
+constraints: Tiny sample -> no deep models; must stay interpretable.
+risks: ['Small sample -> unstable estimates (mitigate: cross-validation).', 'Zero spend values may be missing data rather than true zeros.']
+cost_benefit: Cheap to build; wrong predictions cost the fund money, so the model supports, not replaces, analyst judgment.
+
+--- 1.4 Project plan ---
+ - Phase 2: profile data, correlations, quality checks
+ - Phase 3: clean, encode State, split train/test
+ - Phase 4: OLS on every feature subset, choose by CV R2
+ - Phase 5: test-set metrics vs success criteria, decide go/no-go
+ - Phase 6: deploy only if approved; write final report
+
+======================================================================
+PHASE 2: DATA UNDERSTANDING
+======================================================================
+Loaded /Users/taemi/Desktop/AIOT-week5/50_Startups.csv: 50 rows x 5 columns
+
+--- Head ---
+   R&D Spend  Administration  Marketing Spend       State     Profit
+0  165349.20       136897.80        471784.10    New York  192261.83
+1  162597.70       151377.59        443898.53  California  191792.06
+2  153441.51       101145.55        407934.54     Florida  191050.39
+3  144372.41       118671.85        383199.62    New York  182901.99
+4  142107.34        91391.77        366168.42     Florida  166187.94
+
+--- Data types ---
+R&D Spend          float64
+Administration     float64
+Marketing Spend    float64
+State                  str
+Profit             float64
+dtype: object
+
+--- Descriptive statistics ---
+                 count         mean  ...          75%        max
+R&D Spend         50.0   73721.6156  ...  101602.8000  165349.20
+Administration    50.0  121344.6396  ...  144842.1800  182645.56
+Marketing Spend   50.0  211025.0978  ...  299469.0850  471784.10
+Profit            50.0  112012.6392  ...  139765.9775  192261.83
+
+[4 rows x 8 columns]
+
+--- State frequency ---
+State
+New York      17
+California    17
+Florida       16
+Name: count, dtype: int64
+
+--- Correlation matrix ---
+                 R&D Spend  Administration  Marketing Spend  Profit
+R&D Spend            1.000           0.242            0.724   0.973
+Administration       0.242           1.000           -0.032   0.201
+Marketing Spend      0.724          -0.032            1.000   0.748
+Profit               0.973           0.201            0.748   1.000
+
+--- Correlation with Profit (sorted) ---
+R&D Spend          0.973
+Marketing Spend    0.748
+Administration     0.201
+Name: Profit, dtype: float64
+
+--- Mean profit by State ---
+                mean      std  count
+State                               
+California  103905.2  44446.4     17
+Florida     118774.0  35605.5     16
+New York    113756.4  41140.3     17
+
+--- Data quality ---
+Missing values per column:
+ R&D Spend          0
+Administration     0
+Marketing Spend    0
+State              0
+Profit             0
+dtype: int64
+Duplicate rows: 0
+Zero values per numeric column (possible missing data):
+ R&D Spend          2
+Administration     0
+Marketing Spend    3
+dtype: int64
+Profit outliers (IQR rule): 1
+    R&D Spend  Administration  Marketing Spend       State   Profit
+49        0.0        116983.8         45173.06  California  14681.4
+
+======================================================================
+PHASE 3: DATA PREPARATION
+======================================================================
+Rows after removing duplicates/NaN: 50 (removed 0)
+Train: (40, 4), Test: (10, 4)
+
+--- 3.6 Feature selection analysis (training data) ---
+                 pearson_r  f_score  rfe_rank  lasso_coef  rf_importance_pct
+R&D Spend            0.973  676.103         1   37233.564             92.682
+Marketing Spend      0.774   56.691         2    3547.658              6.346
+State_New York       0.105    0.424         5      -0.000              0.120
+State_Florida        0.095    0.350         4       0.000              0.172
+Administration       0.090    0.312         3   -1061.177              0.679
+
+======================================================================
+PHASE 4: MODELING
+======================================================================
+--- 4.1 Multicollinearity check (VIF, training data) ---
+R&D Spend          2.57
+Administration     1.15
+Marketing Spend    2.54
+dtype: float64
+VIF > 10 would mean coefficients are unreliable: none
+--- Feature subsets ranked by 5-fold CV R2 (training data) ---
+                                               features  n_features  cv_r2_mean  cv_r2_std
+0                          (R&D Spend, Marketing Spend)           2      0.9416     0.0265
+1          (R&D Spend, Administration, Marketing Spend)           3      0.9399     0.0308
+2                           (R&D Spend, Administration)           2      0.9390     0.0318
+3                                          (R&D Spend,)           1      0.9384     0.0284
+4                   (R&D Spend, Marketing Spend, State)           3      0.9364     0.0265
+5   (R&D Spend, Administration, Marketing Spend, State)           4      0.9340     0.0323
+6                    (R&D Spend, Administration, State)           3      0.9338     0.0302
+7                                    (R&D Spend, State)           2      0.9326     0.0232
+8                     (Administration, Marketing Spend)           2      0.3748     0.6354
+9                                    (Marketing Spend,)           1      0.3143     0.7168
+10             (Administration, Marketing Spend, State)           3      0.2565     0.7405
+11                             (Marketing Spend, State)           2      0.2214     0.8258
+12                                    (Administration,)           1     -0.3294     0.3518
+13                                             (State,)           1     -0.6087     0.9452
+14                              (Administration, State)           2     -0.7544     1.1912
+
+Best CV subset : ['R&D Spend', 'Marketing Spend'] (R2=0.9416)
+Selected (1-SD parsimony rule): ['R&D Spend'] (R2=0.9384)
+
+--- Feature progression analysis (5 algorithms) ---
+
+--- Lasso (L1 Ranking) ---
+ Number of Features                                                         Selected Features  CV RMSE (train)  Test RMSE  Test R-squared
+                  1                                                                 R&D Spend        9406.5787  7714.3349          0.9265
+                  2                                                R&D Spend, Marketing Spend        9186.6804  8206.3288          0.9168
+                  3                                R&D Spend, Marketing Spend, Administration        9104.6812  8995.9058          0.9001
+                  4                 R&D Spend, Marketing Spend, Administration, State_Florida        9298.9952  9055.9578          0.8987
+                  5 R&D Spend, Marketing Spend, Administration, State_Florida, State_New York        9550.6761  9055.9573          0.8987
+
+--- Forward SFS ---
+ Number of Features                                                         Selected Features  CV RMSE (train)  Test RMSE  Test R-squared
+                  1                                                                 R&D Spend        9406.5787  7714.3349          0.9265
+                  2                                                 R&D Spend, Administration        9163.3454  9152.2748          0.8966
+                  3                                R&D Spend, Administration, Marketing Spend        9104.6812  8995.9058          0.9001
+                  4                 R&D Spend, Administration, Marketing Spend, State_Florida        9298.9952  9055.9578          0.8987
+                  5 R&D Spend, Administration, Marketing Spend, State_Florida, State_New York        9550.6761  9055.9573          0.8987
+
+--- RFE ---
+ Number of Features                                                         Selected Features  CV RMSE (train)  Test RMSE  Test R-squared
+                  1                                                                 R&D Spend        9406.5787  7714.3349          0.9265
+                  2                                                R&D Spend, Marketing Spend        9186.6804  8206.3288          0.9168
+                  3                                R&D Spend, Marketing Spend, Administration        9104.6812  8995.9058          0.9001
+                  4                 R&D Spend, Marketing Spend, Administration, State_Florida        9298.9952  9055.9578          0.8987
+                  5 R&D Spend, Marketing Spend, Administration, State_Florida, State_New York        9550.6761  9055.9573          0.8987
+
+--- ElasticNet Ranking ---
+ Number of Features                                                         Selected Features  CV RMSE (train)  Test RMSE  Test R-squared
+                  1                                                                 R&D Spend        9406.5787  7714.3349          0.9265
+                  2                                                R&D Spend, Marketing Spend        9186.6804  8206.3288          0.9168
+                  3                                R&D Spend, Marketing Spend, State_New York        9460.9210  8242.7826          0.9161
+                  4                 R&D Spend, Marketing Spend, State_New York, State_Florida        9655.4667  8254.6866          0.9159
+                  5 R&D Spend, Marketing Spend, State_New York, State_Florida, Administration        9550.6761  9055.9573          0.8987
+
+--- Exhaustive Search ---
+ Number of Features                                                         Selected Features  CV RMSE (train)  Test RMSE  Test R-squared
+                  1                                                                 R&D Spend        9406.5787  7714.3349          0.9265
+                  2                                                 R&D Spend, Administration        9163.3454  9152.2748          0.8966
+                  3                                R&D Spend, Administration, Marketing Spend        9104.6812  8995.9058          0.9001
+                  4                 R&D Spend, Administration, Marketing Spend, State_Florida        9298.9952  9055.9578          0.8987
+                  5 R&D Spend, Administration, Marketing Spend, State_Florida, State_New York        9550.6761  9055.9573          0.8987
+
+--- Best subset per method (chosen by CV RMSE on training data) ---
+            Method  Best Number of Features                          Selected Features  CV RMSE (train)  Test RMSE  Test R-squared
+Lasso (L1 Ranking)                        3 R&D Spend, Marketing Spend, Administration        9104.6812  8995.9058          0.9001
+       Forward SFS                        3 R&D Spend, Administration, Marketing Spend        9104.6812  8995.9058          0.9001
+               RFE                        3 R&D Spend, Marketing Spend, Administration        9104.6812  8995.9058          0.9001
+ElasticNet Ranking                        2                 R&D Spend, Marketing Spend        9186.6804  8206.3288          0.9168
+ Exhaustive Search                        3 R&D Spend, Administration, Marketing Spend        9104.6812  8995.9058          0.9001
+
+--- Full model coefficients (numeric features standardized) ---
+num__R&D Spend          38102.3
+num__Marketing Spend     3386.2
+num__Administration     -1864.8
+cat__State_Florida        938.8
+cat__State_New York         7.0
+dtype: float64
+Intercept: 115320.9
+
+======================================================================
+PHASE 5: EVALUATION
+======================================================================
+--- Hold-out test metrics ---
+                    R2  Adj_R2        MAE       RMSE  MAPE_pct
+Full model      0.8987  0.7721  6961.4778  9055.9573   10.2782
+Selected model  0.9265  0.9173  6077.3633  7714.3349    9.1360
+Baseline (predict train mean) RMSE: 33,777
+5-fold CV R2 on full data (selected model): 0.9374 +/- 0.0373
+
+--- Success criteria review ---
+[PASS] Test R2 >= 0.9
+[PASS] CV R2 >= 0.85
+[PASS] MAPE <= 10.0%
+
+Decision: APPROVE for deployment
+
+--- Answers to business questions ---
+1. Strongest spending driver: R&D Spend
+2. State in selected model: no -> State does not add meaningful predictive power
+3. Typical prediction error (MAE): $6,077
+
+--- 5.2 Process review ---
+[OK] Test set touched only after model selection
+[OK] Scaler/encoder fitted inside pipeline (no leakage)
+[OK] Multicollinearity acceptable (all VIF <= 10)
+[OK] Model beats naive baseline RMSE
+
+--- 5.3 Next steps ---
+Proceed to Phase 6 (deployment).
+
+======================================================================
+PHASE 6: DEPLOYMENT
+======================================================================
+Model saved to /Users/taemi/Desktop/AIOT-week5/crispdm_output/startup_profit_model.joblib
+Predicted profit for {'R&D Spend': 160000, 'Administration': 130000, 'Marketing Spend': 300000, 'State': 'New York'}: $185,720
+Predicted profit for {'R&D Spend': 50000, 'Administration': 120000, 'Marketing Spend': 150000, 'State': 'Florida'}: $91,747
+Final report saved to /Users/taemi/Desktop/AIOT-week5/crispdm_output/final_report.json
+
+Project review: with only 50 samples, results have high variance; collect more data before high-stakes use.
+Web report data saved to model_data.json / model_data.js

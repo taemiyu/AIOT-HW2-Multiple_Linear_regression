@@ -1,0 +1,135 @@
+{
+  "business_objective": "Help a venture capital fund estimate a startup's annual profit from its spending profile and location.",
+  "situation": {
+    "resources": "One public CSV (50 rows), Python + scikit-learn.",
+    "assumptions": "Spend figures are annual and comparable across startups.",
+    "constraints": "Tiny sample -> no deep models; must stay interpretable.",
+    "risks": [
+      "Small sample -> unstable estimates (mitigate: cross-validation).",
+      "Zero spend values may be missing data rather than true zeros."
+    ],
+    "cost_benefit": "Cheap to build; wrong predictions cost the fund money, so the model supports, not replaces, analyst judgment."
+  },
+  "vif": {
+    "R&D Spend": 2.57,
+    "Administration": 1.15,
+    "Marketing Spend": 2.54
+  },
+  "feature_selection": {
+    "R&D Spend": {
+      "pearson_r": 0.973,
+      "f_score": 676.1035,
+      "rfe_rank": 1,
+      "lasso_coef": 37233.5644,
+      "rf_importance_pct": 92.6821
+    },
+    "Marketing Spend": {
+      "pearson_r": 0.7738,
+      "f_score": 56.6907,
+      "rfe_rank": 2,
+      "lasso_coef": 3547.6581,
+      "rf_importance_pct": 6.3461
+    },
+    "State_New York": {
+      "pearson_r": 0.105,
+      "f_score": 0.4238,
+      "rfe_rank": 5,
+      "lasso_coef": -0.0,
+      "rf_importance_pct": 0.1204
+    },
+    "State_Florida": {
+      "pearson_r": 0.0955,
+      "f_score": 0.3497,
+      "rfe_rank": 4,
+      "lasso_coef": 0.0,
+      "rf_importance_pct": 0.1724
+    },
+    "Administration": {
+      "pearson_r": 0.0902,
+      "f_score": 0.312,
+      "rfe_rank": 3,
+      "lasso_coef": -1061.177,
+      "rf_importance_pct": 0.679
+    }
+  },
+  "feature_selection_comparison": [
+    {
+      "Method": "Lasso (L1 Ranking)",
+      "Best Number of Features": 3,
+      "Selected Features": "R&D Spend, Marketing Spend, Administration",
+      "CV RMSE (train)": 9104.6812,
+      "Test RMSE": 8995.9058,
+      "Test R-squared": 0.9001
+    },
+    {
+      "Method": "Forward SFS",
+      "Best Number of Features": 3,
+      "Selected Features": "R&D Spend, Administration, Marketing Spend",
+      "CV RMSE (train)": 9104.6812,
+      "Test RMSE": 8995.9058,
+      "Test R-squared": 0.9001
+    },
+    {
+      "Method": "RFE",
+      "Best Number of Features": 3,
+      "Selected Features": "R&D Spend, Marketing Spend, Administration",
+      "CV RMSE (train)": 9104.6812,
+      "Test RMSE": 8995.9058,
+      "Test R-squared": 0.9001
+    },
+    {
+      "Method": "ElasticNet Ranking",
+      "Best Number of Features": 2,
+      "Selected Features": "R&D Spend, Marketing Spend",
+      "CV RMSE (train)": 9186.6804,
+      "Test RMSE": 8206.3288,
+      "Test R-squared": 0.9168
+    },
+    {
+      "Method": "Exhaustive Search",
+      "Best Number of Features": 3,
+      "Selected Features": "R&D Spend, Administration, Marketing Spend",
+      "CV RMSE (train)": 9104.6812,
+      "Test RMSE": 8995.9058,
+      "Test R-squared": 0.9001
+    }
+  ],
+  "selected_features": [
+    "R&D Spend"
+  ],
+  "test_metrics_selected": {
+    "R2": 0.9265,
+    "Adj_R2": 0.9173,
+    "MAE": 6077.3633,
+    "RMSE": 7714.3349,
+    "MAPE_pct": 9.136
+  },
+  "test_metrics_full": {
+    "R2": 0.8987,
+    "Adj_R2": 0.7721,
+    "MAE": 6961.4778,
+    "RMSE": 9055.9573,
+    "MAPE_pct": 10.2782
+  },
+  "cv_r2_mean": 0.9374,
+  "cv_r2_std": 0.0373,
+  "success_criteria_passed": {
+    "Test R2 >= 0.9": true,
+    "CV R2 >= 0.85": true,
+    "MAPE <= 10.0%": true
+  },
+  "process_review": {
+    "Test set touched only after model selection": true,
+    "Scaler/encoder fitted inside pipeline (no leakage)": true,
+    "Multicollinearity acceptable (all VIF <= 10)": true,
+    "Model beats naive baseline RMSE": true
+  },
+  "approved": true,
+  "next_steps": "Proceed to Phase 6 (deployment).",
+  "monitoring_plan": [
+    "Log every prediction with its inputs; compare to actual profit when reported.",
+    "Retrain quarterly or when rolling MAPE exceeds 15%.",
+    "Alert if new inputs fall outside training ranges (data drift).",
+    "Alert on unseen State values (encoder ignores them -> baseline state)."
+  ]
+}
