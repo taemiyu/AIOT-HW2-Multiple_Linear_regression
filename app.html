@@ -657,7 +657,7 @@ footer ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
   }
 
   // ------------------------------------------------------------ controls
-  const ALGOS = [...S.METHODS, { key: "compare", title: "比較全部 5 種", sub: "Compare" }, { key: "manual", title: "手動勾選", sub: "Manual" }];
+  const ALGOS = [...S.METHODS, { key: "compare", title: "比較全部演算法", sub: "Compare" }, { key: "manual", title: "手動勾選", sub: "Manual" }];
   $("algoBtns").replaceChildren(...ALGOS.map(a => h("button", { type: "button", "data-a": a.key, onclick: () => {
     st.algo = a.key;
     if (st.ds && st.ds.prog && st.ds.prog[a.key]) st.k = st.ds.best[a.key].oneSd;

@@ -222,14 +222,15 @@ def report():
     pi_half = sum((q["pi_hi"] - q["pi_lo"]) / 2 for q in M["interval_plot"]) / len(M["interval_plot"])
     ci_half = sum((q["ci_hi"] - q["ci_lo"]) / 2 for q in M["interval_plot"]) / len(M["interval_plot"])
     nb_sources = [
-        ("Kaggle：Life Expectancy (WHO) 資料集頁面", "https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who"),
-        ("Enjoy Algorithms：Predicting Life Expectancy Using Linear Regression", "https://www.enjoyalgorithms.com/blog/life-expectancy-prediction-using-linear-regression/"),
-        ("NYC Data Science Academy：Modeling Life Expectancy", "https://nycdatascience.com/blog/student-works/life-expectancy-by-country/"),
-        ("Kaggle：WHO Life Expectancy - Multi Linear Regression", "https://www.kaggle.com/code/captainozlem/who-life-expectancy-multi-linear-regression"),
-        ("CAUSE USCLAP：Analyzing Significant Predictors of Life Expectancy across Countries", "https://www.causeweb.org/usproc/sites/default/files/usclap/2022-1/analyzing-significant-predictors-of-life-expectancy-across-countries.pdf"),
-        ("arXiv 2510.00542：線性迴歸、決策樹與隨機森林的比較", "https://arxiv.org/abs/2510.00542"),
-        ("iJOE（2022）：Life Expectancy Prediction through Analysis of Immunization and HDI Factors", "https://online-journals.org/index.php/i-joe/article/view/33315"),
-        ("GitHub：frinkleko/life-expectancy", "https://github.com/frinkleko/life-expectancy"),
+        ('Kaggle：Life Expectancy (WHO) 資料集頁面', 'https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who'),
+        ('Kaggle：WHO Life Expectancy - Multi Linear Regression', 'https://www.kaggle.com/code/captainozlem/who-life-expectancy-multi-linear-regression'),
+        ('Kaggle：(Detailed) REGRESSION PROJECT on Life Expectancy', 'https://www.kaggle.com/code/ecedolen/detailed-regression-project-on-life-expectancy'),
+        ('Enjoy Algorithms：Life Expectancy Prediction Using Machine Learning', 'https://www.enjoyalgorithms.com/blog/life-expectancy-prediction-using-linear-regression/'),
+        ('NYC Data Science Academy：Modeling Life Expectancy', 'https://nycdatascience.com/blog/student-works/life-expectancy-by-country/'),
+        ('CAUSE USCLAP：Analyzing Significant Predictors of Life Expectancy across Countries', 'https://www.causeweb.org/usproc/sites/default/files/usclap/2022-1/analyzing-significant-predictors-of-life-expectancy-across-countries.pdf'),
+        ('arXiv 2510.00542：Interpretable Machine Learning for Life Expectancy Prediction: A Comparative Study of Linear Regression, Decision Tree, and Random Forest', 'https://arxiv.org/abs/2510.00542'),
+        ('iJOE（2022）：Life Expectancy Prediction through Analysis of Immunization and HDI Factors using Machine Learning Regression Algorithms', 'https://online-journals.org/index.php/i-joe/article/view/33315'),
+        ('GitHub：frinkleko/Life-expectancy（Data mining group project）', 'https://github.com/frinkleko/life-expectancy'),
     ]
     img = lambda name: f"../crispdm_output/{name}"
     return f"""<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>HW2 報告書：WHO 平均壽命多元線性迴歸</title>
