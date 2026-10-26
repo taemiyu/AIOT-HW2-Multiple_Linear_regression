@@ -343,13 +343,25 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
     <article class="entry">
       <div class="rail"><div class="dot">AI</div></div>
       <div class="body">
-        <header><span class="eyebrow">AI 協助說明</span><h2>GPT 輔助內容</h2></header>
+        <header><span class="eyebrow">AI 協助說明</span><h2>GPT 輔助內容（AI 工具：Claude）</h2></header>
         <div class="panel ai-box">
           <p class="note">依作業規定標示：以下列出本專案中由生成式 AI 工具協助完成的部分。完整對話紀錄另以 PDF 繳交。</p>
           <ul class="clean" id="aiList" style="margin-top:10px">
-            <li><b>使用的 AI 工具：</b><span class="todo">（請填寫，例如：ChatGPT、Claude）</span></li>
+            <li><b>使用的 AI 工具：</b>
+              <ul class="clean" style="margin-top:4px">
+                <li><b>Claude（Claude Code）</b>：主要開發工具，負責程式撰寫、資料分析、網頁製作與報告文字草稿。</li>
+                <li><b>NotebookLM</b>：研究網路上同主題的解法並產生摘要（見下一節）。</li>
+              </ul></li>
             <li><b>AI 協助的部分：</b>資料集挑選建議、資料清理與補值策略、CRISP-DM 程式（main.py、feature_progression_analysis.py）、瀏覽器端統計引擎與特徵選擇演算法（regression.js、selection.js）、網頁版面與圖表、本報告文字草稿。</li>
-            <li><b>本人負責與確認的部分：</b><span class="todo">（請填寫，例如：題目與資料集決定、執行與檢查結果、修改與最終判斷）</span></li>
+            <li><b>本人負責與確認的部分：</b>
+              <ul class="clean" style="margin-top:4px">
+                <li><b>作業方向：</b>依作業要求提出需求，包括 CRISP-DM 流程、加分項目（資料集下拉選單、任意輸入資料集）、指定 Boston Housing 必須出現在選單中。</li>
+                <li><b>資料集決定：</b>參考作業說明中提供的資料集清單與 Claude 的建議，選定 WHO Life Expectancy，並自行從 Kaggle 下載資料。</li>
+                <li><b>專案與部署：</b>建立 GitHub repository，將 HW2 與 HW1 分開管理；在 Vercel 與 GitHub Pages 完成部署設定。</li>
+                <li><b>網站設計方向：</b>指定版面參考網站、選擇配色風格與黑貓元素，並多次檢視畫面、提出修改。</li>
+                <li><b>研究：</b>使用 NotebookLM 整理同主題文獻並產生摘要。</li>
+                <li><b>檢查與確認：</b>檢視分析結果、網站與報告內容，決定最終繳交版本。</li>
+              </ul></li>
             <li><b>驗證方式：</b>網頁計算結果已與 Python（statsmodels、scikit-learn）逐項比對一致。</li>
           </ul>
         </div>

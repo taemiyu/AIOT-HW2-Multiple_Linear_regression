@@ -67,7 +67,7 @@
 | 模型評估 | 測試集為 37 個「沒看過的國家」：R²、RMSE、MAE、MAPE、分組 CV R²；與 Ridge／Lasso 比較；五大迴歸假設檢定 |
 | 預測圖加信賴區間或預測區間 | `crispdm_output/07_prediction_intervals_test.png`、`08_simple_regression_intervals.png`；網頁報告與探索器也有互動版 |
 | CRISP-DM 六階段 | `main.py` 依六階段撰寫；網頁報告逐階段呈現 |
-| GPT 輔助內容、NotebookLM 摘要 | 網頁報告最後兩節（需本人補上工具名稱與 NotebookLM 摘要） |
+| GPT 輔助內容、NotebookLM 摘要 | 網頁報告最後兩節：使用的 AI 工具（Claude、NotebookLM）與分工、NotebookLM 摘要與來源 |
 | 加分：下拉選單呈現兩種以上 problem | 探索器內建 5 個資料集：WHO Life Expectancy、50 Startups、Advertising、Medical Insurance、Boston Housing |
 | 加分：可任意輸入 Dataset | 探索器可輸入 CSV 網址或上傳 CSV 檔 |
 
@@ -139,7 +139,7 @@ python3 -m http.server 8000
 
 ## AI 協助說明
 
-依作業規定，AI 輔助的範圍標示在網頁報告的「GPT 輔助內容」一節，對話紀錄另以 PDF 繳交；NotebookLM 研究摘要放在報告的「NotebookLM 摘要」一節。
+本專案使用 **Claude（Claude Code）** 作為主要開發工具（程式、分析、網頁與報告草稿），並使用 **NotebookLM** 研究同主題解法。AI 協助範圍與本人負責的部分詳列於網頁報告的「GPT 輔助內容」一節，對話紀錄另以 PDF 直接繳交（不放在本 repo）；NotebookLM 研究摘要與來源放在報告的「NotebookLM 摘要」一節。
 
 ## 致謝與參考資料
 

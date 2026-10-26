@@ -17,3 +17,8 @@ ff2a8934-*_ExportBlock-*/
 
 # Raw downloads (the extracted CSV is committed instead)
 datasets/*.zip
+
+# AI conversation exports are submitted separately, never committed
+*conversation*.pdf
+session-export-*.zip
+transcript*.jsonl
