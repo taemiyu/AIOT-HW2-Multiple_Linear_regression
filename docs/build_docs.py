@@ -400,7 +400,16 @@ if __name__ == "__main__":
     diff = ImageChops.difference(im, Image.new("RGB", im.size, (246, 243, 234)))
     bbox = diff.getbbox()
     if bbox:
-        im.crop((0, 0, im.width, min(im.height, bbox[3] + 40))).save(DOCS / "infographic.png", optimize=True)
+        im = im.crop((0, 0, im.width, min(im.height, bbox[3] + 40)))
+        im.save(DOCS / "infographic.png", optimize=True)
+    # Same infographic as a one-page PDF sized to the content (CSS px = PNG px / 2).
+    page_h = int(im.height / 2) + 120   # print layout runs slightly taller than the screenshot
+    with tempfile.TemporaryDirectory() as tmp:
+        printable = Path(tmp) / "infographic_print.html"
+        printable.write_text(infographic().replace(
+            "</style>", f"@page {{ size: 1080px {page_h}px; margin: 0; }}\nhtml {{ background: #f6f3ea; }}\nhtml, body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}\n</style>", 1),
+            encoding="utf-8")
+        chrome(["--no-pdf-header-footer", "--virtual-time-budget=5000", f"--print-to-pdf={DOCS / 'infographic.pdf'}", printable.as_uri()])
     chrome(["--no-pdf-header-footer", "--virtual-time-budget=8000", f"--print-to-pdf={DOCS / 'HW2_report.pdf'}",
             (DOCS / "report.html").as_uri()])
-    print("Wrote docs/infographic.html, docs/infographic.png, docs/report.html, docs/HW2_report.pdf")
+    print("Wrote docs/infographic.html, docs/infographic.png, docs/infographic.pdf, docs/report.html, docs/HW2_report.pdf")

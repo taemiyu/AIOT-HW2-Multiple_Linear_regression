@@ -62,7 +62,7 @@
 | 項目 | 檔案 | 線上瀏覽 |
 |---|---|---|
 | 報告書（PDF，17 頁） | [docs/HW2_report.pdf](docs/HW2_report.pdf) | https://aiot-hw2-multiple-linear-regression.vercel.app/docs/report |
-| 資訊圖表 | [docs/infographic.png](docs/infographic.png) | https://aiot-hw2-multiple-linear-regression.vercel.app/docs/infographic |
+| 資訊圖表 | [docs/infographic.png](docs/infographic.png)、[docs/infographic.pdf](docs/infographic.pdf) | https://aiot-hw2-multiple-linear-regression.vercel.app/docs/infographic |
 
 ![HW2 資訊圖表](docs/infographic.png)
 
@@ -82,7 +82,7 @@ python docs/build_docs.py
 | 模型評估 | 測試集為 37 個「沒看過的國家」：R²、RMSE、MAE、MAPE、分組 CV R²；與 Ridge／Lasso 比較；五大迴歸假設檢定 |
 | 預測圖加信賴區間或預測區間 | `crispdm_output/07_prediction_intervals_test.png`、`08_simple_regression_intervals.png`；網頁報告與探索器也有互動版 |
 | CRISP-DM 六階段 | `main.py` 依六階段撰寫；網頁報告逐階段呈現 |
-| 選做：資訊圖表、報告書 | `docs/infographic.png`、`docs/HW2_report.pdf` |
+| 選做：資訊圖表、報告書 | `docs/infographic.png`、`docs/infographic.pdf`、`docs/HW2_report.pdf` |
 | GPT 輔助內容、NotebookLM 摘要 | 網頁報告最後兩節：使用的 AI 工具（Claude、NotebookLM）與分工、NotebookLM 摘要與來源 |
 | 加分：下拉選單呈現兩種以上 problem | 探索器內建 5 個資料集：WHO Life Expectancy、50 Startups、Advertising、Medical Insurance、Boston Housing |
 | 加分：可任意輸入 Dataset | 探索器可輸入 CSV 網址或上傳 CSV 檔 |
@@ -134,7 +134,7 @@ crispdm_output/                      各階段圖表、模型（.joblib）、fin
 requirements.txt                     Python 套件版本
 docs/screenshots/                    README 用的網站截圖
 docs/HW2_report.pdf、report.html       報告書（PDF 與網頁版）
-docs/infographic.png、infographic.html 資訊圖表
+docs/infographic.png／.pdf／.html   資訊圖表
 docs/build_docs.py                   產生報告書與資訊圖表
 ```
 
