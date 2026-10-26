@@ -4,12 +4,58 @@
 
 ## Demo
 
-| 頁面 | 說明 | 連結 |
-|---|---|---|
-| HW2 專案報告 | CRISP-DM 六階段完整報告 | （部署後填入） |
-| 多元迴歸探索器 | 切換資料集／演算法、輸入網址或上傳 CSV，即時計算 | （部署後填入） |
+| 頁面 | 說明 | Vercel | GitHub Pages |
+|---|---|---|---|
+| HW2 專案報告 | CRISP-DM 六階段完整報告 | https://aiot-hw2-multiple-linear-regression.vercel.app/ | https://taemiyu.github.io/AIOT-HW2-Multiple_Linear_regression/ |
+| 多元迴歸探索器 | 切換資料集／演算法、輸入網址或上傳 CSV，即時計算 | https://aiot-hw2-multiple-linear-regression.vercel.app/app | https://taemiyu.github.io/AIOT-HW2-Multiple_Linear_regression/app.html |
+
+兩個網站內容相同，push 到 `main` 後都會自動更新。
 
 - GitHub：https://github.com/taemiyu/AIOT-HW2-Multiple_Linear_regression
+
+## 網站截圖
+
+### HW2 專案報告
+
+依 CRISP-DM 六階段呈現：資料來源、商業理解、資料理解、資料準備、建模、評估、部署，最後是 AI 輔助說明與 NotebookLM 摘要。
+
+![專案報告首頁](docs/screenshots/report-home.jpg)
+
+**資料理解**：各欄缺值數、與平均壽命的相關係數、平均壽命分布、不合理數值與處理方式。
+
+![資料理解](docs/screenshots/report-data.jpg)
+
+**特徵選擇**：全部候選特徵的 VIF（嬰兒與五歲以下死亡數嚴重共線），4 種演算法的 Test RMSE 對特徵數，以及各演算法的 1-SD 精簡子集。
+
+![特徵選擇](docs/screenshots/report-features.jpg)
+
+**模型比較與最終模型**：OLS（全部／精簡）、Ridge、Lasso 的比較；最終模型的迴歸方程式與係數表（含依國家分群的叢集穩健標準誤）。
+
+![模型比較與係數表](docs/screenshots/report-models.jpg)
+
+**預測圖（作業指定）**：測試集 37 個沒看過的國家，附 95% 信賴區間與預測區間；下方為單純線性迴歸的區間圖。
+
+![預測區間圖](docs/screenshots/report-intervals.jpg)
+
+### 多元迴歸探索器
+
+**總覽**：資料集下拉選單（預設 WHO，與 Python 相同的依國家切分）、演算法選單、特徵數 k、指標卡片。
+
+![探索器總覽](docs/screenshots/explorer-overview.jpg)
+
+**比較全部演算法**：RMSE／R² 對特徵數的折線圖與比較表。
+
+![比較全部演算法](docs/screenshots/explorer-compare.jpg)
+
+**預測圖**：依目前選的特徵即時重算測試集預測值、信賴區間與預測區間，並顯示涵蓋率；下方為假設檢定。
+
+![探索器預測區間圖](docs/screenshots/explorer-intervals.jpg)
+
+**加分：任意輸入資料集**：輸入 CSV 網址（作業範例網址）或上傳 CSV 檔。
+
+![輸入 CSV 網址](docs/screenshots/explorer-custom.jpg)
+
+![上傳 CSV 檔](docs/screenshots/explorer-upload.jpg)
 
 ## 作業要求對照
 
@@ -70,6 +116,7 @@ model_data.json / model_data.js      main.py 產生的網頁資料
 crispdm_output/                      各階段圖表、模型（.joblib）、final_report.json、執行紀錄
 *_progression.csv / *_plot.png       各特徵選擇演算法的逐步結果
 requirements.txt                     Python 套件版本
+docs/screenshots/                    README 用的網站截圖
 ```
 
 ## 執行
