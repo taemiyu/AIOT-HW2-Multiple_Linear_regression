@@ -1,0 +1,145 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>HW2 報告書：WHO 平均壽命多元線性迴歸</title>
+<style>
+@page { size: A4; margin: 18mm 16mm 18mm; }
+body { font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; font-size: 10.5pt; line-height: 1.65; color: #222; }
+h1, h2, h3 { font-family: "Songti TC", "Noto Serif TC", serif; color: #2e3a31; }
+h1 { font-size: 24pt; margin: 0 0 6px; } h2 { font-size: 16pt; margin: 22px 0 8px; border-bottom: 2px solid #56755b; padding-bottom: 3px; }
+h3 { font-size: 12pt; margin: 14px 0 6px; }
+.cover { height: 245mm; display: flex; flex-direction: column; justify-content: center; gap: 10px; page-break-after: always; }
+.cover .tag { color: #56755b; font-weight: 700; letter-spacing: .1em; } .cover p { margin: 2px 0; color: #444; }
+.cover .box { margin-top: 24px; background: #eef3ea; border-left: 4px solid #56755b; padding: 12px 16px; }
+.toc { page-break-after: always; } .toc ol { line-height: 2; }
+.page { page-break-before: always; }
+table { border-collapse: collapse; width: 100%; font-size: 9pt; margin: 6px 0 10px; page-break-inside: avoid; }
+th, td { border-bottom: 1px solid #ddd; padding: 4px 6px; text-align: left; vertical-align: top; } th { background: #eef3ea; }
+td.n, th.n { text-align: right; white-space: nowrap; }
+figure { margin: 8px 0 12px; page-break-inside: avoid; } figure img { border: 1px solid #ddd; } figcaption { font-size: 9pt; color: #555; }
+.eq { font-family: Menlo, monospace; font-size: 9pt; background: #f4f4f4; padding: 6px 8px; overflow-wrap: anywhere; word-break: break-word; }
+.note { font-size: 9.5pt; color: #444; background: #f8f6ef; border-left: 3px solid #c08a4b; padding: 6px 10px; }
+blockquote { margin: 6px 0; padding: 8px 12px; background: #f4f4f4; border-left: 3px solid #999; }
+a { color: #44604a; word-break: break-all; }
+</style></head><body>
+
+<div class="cover">
+  <div class="tag">AIoT · HW2 · Multiple Linear Regression</div>
+  <h1>WHO 平均壽命預測：<br>以 CRISP-DM 進行多元線性迴歸分析</h1>
+  <p>資料集：Kaggle「Life Expectancy (WHO)」（193 國、2000–2015 年、20 個候選特徵）</p>
+  <p>作者：taemiyu　　日期：2026-10-27</p>
+  <div class="box">
+    <p>網頁報告：<a href="https://aiot-hw2-multiple-linear-regression.vercel.app/">https://aiot-hw2-multiple-linear-regression.vercel.app/</a></p>
+    <p>互動探索器：<a href="https://aiot-hw2-multiple-linear-regression.vercel.app/app">https://aiot-hw2-multiple-linear-regression.vercel.app/app</a></p>
+    <p>GitHub Pages：<a href="https://taemiyu.github.io/AIOT-HW2-Multiple_Linear_regression/">https://taemiyu.github.io/AIOT-HW2-Multiple_Linear_regression/</a></p>
+    <p>程式碼：<a href="https://github.com/taemiyu/AIOT-HW2-Multiple_Linear_regression">https://github.com/taemiyu/AIOT-HW2-Multiple_Linear_regression</a></p>
+  </div>
+</div>
+
+<div class="toc"><h2>目錄</h2><ol>
+<li>摘要</li><li>資料集</li><li>Business Understanding 商業理解</li><li>Data Understanding 資料理解</li>
+<li>Data Preparation 資料準備</li><li>Modeling 建模與特徵選擇</li><li>Evaluation 評估（含預測區間圖）</li>
+<li>Deployment 部署</li><li>結論、限制與未來改進</li><li>GPT 輔助內容</li><li>NotebookLM 摘要</li><li>參考資料</li></ol></div>
+
+<h2>1. 摘要</h2>
+<p>本報告以 Kaggle 的 WHO Life Expectancy 資料集（2,938 列、22 欄），依 CRISP-DM 六階段建立多元線性迴歸模型預測各國平均壽命。資料準備階段處理了大量缺值與不合理值（刪除 48% 錯誤的 BMI 欄、偏態變數取 log、同國中位數補值），並<b>依國家切分訓練／測試集</b>，避免同一國家的不同年份洩漏答案。以 Lasso、Forward SFS、RFE、ElasticNet 四種演算法搭配依國家分組的交叉驗證進行特徵選擇，依 1-SD 精簡原則選出 4 個特徵：Income composition of resources、log HIV/AIDS、Adult Mortality、Diphtheria。最終模型在 37 個模型沒看過的國家上達到 <b>R² 0.850、RMSE 3.75 歲</b>，95% 預測區間涵蓋 93.4% 的實際值，三項成功標準全部通過。</p>
+
+<h2>2. 資料集</h2>
+<p>來源：<a href="https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who">https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who</a>（Kaggle，作者 KumarRajarshi；原始資料來自 WHO Global Health Observatory 與聯合國）。每列為一個國家在一個年份的資料，預測目標為平均壽命（Life expectancy，歲）。候選特徵共 20 個（不含國家名稱與目標），符合作業「特徵數大於 13」的要求：</p>
+<table><thead><tr><th class="">特徵</th><th class="">說明</th><th class="n">與壽命的相關係數</th></tr></thead><tbody><tr><td class="">Year</td><td class="">年份（2000–2015）</td><td class="n">+0.170</td></tr><tr><td class="">Status</td><td class="">已開發／開發中國家</td><td class="n">—</td></tr><tr><td class="">Adult Mortality</td><td class="">成人死亡率：15–60 歲每千人死亡機率</td><td class="n">-0.696</td></tr><tr><td class="">infant deaths</td><td class="">每千人嬰兒死亡數</td><td class="n">-0.197</td></tr><tr><td class="">Alcohol</td><td class="">15 歲以上人均酒精消費（公升）</td><td class="n">+0.405</td></tr><tr><td class="">percentage expenditure</td><td class="">健康支出占人均 GDP 的百分比</td><td class="n">+0.382</td></tr><tr><td class="">Hepatitis B</td><td class="">1 歲兒童 B 型肝炎疫苗覆蓋率（%）</td><td class="n">+0.257</td></tr><tr><td class="">Measles</td><td class="">每千人麻疹通報病例</td><td class="n">-0.158</td></tr><tr><td class="">BMI</td><td class="">國民平均 BMI</td><td class="n">+0.568</td></tr><tr><td class="">under-five deaths</td><td class="">每千人五歲以下死亡數</td><td class="n">-0.223</td></tr><tr><td class="">Polio</td><td class="">1 歲兒童小兒麻痺疫苗覆蓋率（%）</td><td class="n">+0.466</td></tr><tr><td class="">Total expenditure</td><td class="">政府健康支出占政府總支出（%）</td><td class="n">+0.218</td></tr><tr><td class="">Diphtheria</td><td class="">1 歲兒童白喉（DTP3）疫苗覆蓋率（%）</td><td class="n">+0.479</td></tr><tr><td class="">HIV/AIDS</td><td class="">每千名活產 0–4 歲 HIV/AIDS 死亡數</td><td class="n">-0.557</td></tr><tr><td class="">GDP</td><td class="">人均 GDP（美元）</td><td class="n">+0.461</td></tr><tr><td class="">Population</td><td class="">人口數</td><td class="n">-0.022</td></tr><tr><td class="">thinness 1-19 years</td><td class="">10–19 歲過瘦盛行率（%）</td><td class="n">-0.477</td></tr><tr><td class="">thinness 5-9 years</td><td class="">5–9 歲過瘦盛行率（%）</td><td class="n">-0.472</td></tr><tr><td class="">Income composition of resources</td><td class="">人類發展指數中的收入組成（0–1）</td><td class="n">+0.725</td></tr><tr><td class="">Schooling</td><td class="">平均受教育年數</td><td class="n">+0.752</td></tr></tbody></table>
+
+<h2 class="page">3. Business Understanding 商業理解</h2>
+<p><b>商業目標：</b>協助衛生政策分析者，從各國的健康、經濟與社會指標估計平均壽命，並找出最關鍵的指標。</p>
+<p><b>商業問題：</b>（1）哪些指標與平均壽命最相關？（2）對「沒看過的國家」能預測多準？（3）單一預測的不確定性有多大？</p>
+<p><b>資料探勘目標：</b>建立可解釋的多元線性迴歸模型 <span class="eq">Life expectancy = f(指標)</span>，並以未見過的國家評估。</p>
+<p><b>成功標準（建模前訂定）：</b>測試集 R² ≥ 0.8、測試集 RMSE ≤ 4.5 歲、分組 5-fold CV R² ≥ 0.75。</p>
+<p><b>現況評估：</b>資源為一份公開資料集與 Python（scikit-learn、statsmodels）；模型須可解釋；主要風險為缺值多、不合理數值、以及同一國家重複出現造成的資料洩漏。</p>
+
+<h2>4. Data Understanding 資料理解</h2>
+<p>14 個欄位有缺值，1,289 列（44%）至少缺一個值，因此不能直接刪除有缺值的列。與平均壽命相關最強的是受教育年數（r = +0.75）、收入組成指數（+0.72）與成人死亡率（-0.70）。</p>
+<figure><img src="../crispdm_output/01_missing_values.png" style="width:80%"><figcaption>圖 1　各欄缺值數</figcaption></figure>
+<figure><img src="../crispdm_output/03_correlation_with_target.png" style="width:80%"><figcaption>圖 2　各特徵與平均壽命的 Pearson 相關係數</figcaption></figure>
+<figure><img src="../crispdm_output/02_target_distribution.png" style="width:70%"><figcaption>圖 3　平均壽命分布（平均 69.2 歲，範圍 36.3–89.0 歲）</figcaption></figure>
+<figure><img src="../crispdm_output/05_top_features_scatter.png" style="width:100%"><figcaption>圖 4　相關最強的 6 個特徵與平均壽命的散佈圖</figcaption></figure>
+<h3>不合理數值與處理</h3><table><thead><tr><th class="">問題</th><th class="n">筆數</th><th class="n">比例</th><th class="">處理</th></tr></thead><tbody><tr><td class="">國家平均 BMI 低於 10 或高於 50</td><td class="n">1,422</td><td class="n">48.4%</td><td class="">刪除 BMI 欄</td></tr><tr><td class="">教育年數 = 0</td><td class="n">28</td><td class="n">1.0%</td><td class="">視為缺值後補值</td></tr><tr><td class="">收入組成指數 = 0</td><td class="n">130</td><td class="n">4.4%</td><td class="">視為缺值後補值</td></tr><tr><td class="">健康支出比例 = 0</td><td class="n">611</td><td class="n">20.8%</td><td class="">視為缺值後補值</td></tr><tr><td class="">平均壽命（目標）缺值</td><td class="n">10</td><td class="n">0.3%</td><td class="">刪除該列</td></tr></tbody></table>
+
+<h2 class="page">5. Data Preparation 資料準備</h2>
+<ol>
+<li><b>選擇：</b>刪除 10 列沒有目標值的資料；刪除 BMI 欄（48% 的值不可能是國家平均）。</li>
+<li><b>清理：</b>教育年數、收入組成指數、健康支出比例為 0 者視為缺值。</li>
+<li><b>建構：</b>7 個嚴重偏態的變數取 log(1+x)；Status 轉為 0/1（Status_Developing）。最終候選特徵 19 個。</li>
+<li><b>切分：</b>以 GroupShuffleSplit <b>依國家</b> 80/20 切分（訓練 146 國 2,336 列、測試 37 國 592 列），兩者沒有重疊的國家；交叉驗證同樣使用 GroupKFold。</li>
+<li><b>補值：</b>共 3,243 格。先用同一國家其他年份的中位數（1,211 格），該國完全沒有資料時才用訓練集中位數（2,032 格）；只使用特徵值、不使用目標值，沒有資料洩漏。開發過程中比較：只用訓練集中位數時測試集 R² 為 0.813，改用同國中位數後提升至 0.850。</li>
+</ol>
+<div class="note">為什麼依國家切分：同一國家各年份的資料非常相似，隨機切分會讓模型在測試時「看過」同一國家，使分數被高估。依國家切分的結果更能代表「預測一個新國家」的實際表現。</div>
+<h3>偏態變數取 log 的效果</h3><table><thead><tr><th class="">變數</th><th class="n">偏態（前）</th><th class="n">偏態（後）</th></tr></thead><tbody><tr><td class="">Population</td><td class="n">15.92</td><td class="n">-0.55</td></tr><tr><td class="">infant deaths</td><td class="n">9.79</td><td class="n">0.70</td></tr><tr><td class="">under-five deaths</td><td class="n">9.50</td><td class="n">0.64</td></tr><tr><td class="">Measles</td><td class="n">9.44</td><td class="n">0.55</td></tr><tr><td class="">HIV/AIDS</td><td class="n">5.40</td><td class="n">2.12</td></tr><tr><td class="">percentage expenditure</td><td class="n">4.65</td><td class="n">0.06</td></tr><tr><td class="">GDP</td><td class="n">3.21</td><td class="n">-0.14</td></tr></tbody></table>
+
+<h2 class="page">6. Modeling 建模與特徵選擇</h2>
+<h3>6.1 共線性檢查（VIF）</h3>
+<p>嬰兒死亡數與五歲以下死亡數幾乎是同一件事，VIF 超過 190；特徵選擇會只留下其中之一。</p><table><thead><tr><th class="">特徵</th><th class="n">VIF</th></tr></thead><tbody><tr><td class="">log under-five deaths</td><td class="n">203.76（嚴重共線）</td></tr><tr><td class="">log infant deaths</td><td class="n">193.64（嚴重共線）</td></tr><tr><td class="">Income composition of resources</td><td class="n">10.92（嚴重共線）</td></tr><tr><td class="">log percentage expenditure</td><td class="n">7.89</td></tr><tr><td class="">log GDP</td><td class="n">7.76</td></tr><tr><td class="">thinness 5-9 years</td><td class="n">7.73</td></tr><tr><td class="">thinness 1-19 years</td><td class="n">7.64</td></tr><tr><td class="">Schooling</td><td class="n">7.41</td></tr><tr><td class="">Diphtheria</td><td class="n">2.42</td></tr><tr><td class="">log HIV/AIDS</td><td class="n">2.31</td></tr><tr><td class="">Polio</td><td class="n">2.23</td></tr><tr><td class="">Alcohol</td><td class="n">1.90</td></tr><tr><td class="">Adult Mortality</td><td class="n">1.89</td></tr><tr><td class="">log Measles</td><td class="n">1.82</td></tr><tr><td class="">Status_Developing</td><td class="n">1.79</td></tr><tr><td class="">Hepatitis B</td><td class="n">1.61</td></tr><tr><td class="">log Population</td><td class="n">1.28</td></tr><tr><td class="">Total expenditure</td><td class="n">1.27</td></tr><tr><td class="">Year</td><td class="n">1.13</td></tr></tbody></table>
+<h3>6.2 特徵選擇</h3>
+<p>四種演算法（Lasso 路徑、Forward SFS、RFE、ElasticNet 路徑）各自只看訓練集，以依國家分組的 5-fold CV RMSE 比較 k = 1 到 19 個特徵。19 個特徵的窮舉搜尋需 524,287 種組合，計算量過大，因此略過。CV RMSE 最低的是 Forward SFS k = 11（3.503 ± 0.188 歲）；依 <b>1-SD 精簡原則</b>（CV RMSE 落在最佳值一個標準差內、特徵最少），選出 <b>Forward SFS，k = 4</b>。</p>
+<figure><img src="../all_algorithms_comparison_plot.png" style="width:85%"><figcaption>圖 5　各演算法的 Test RMSE 對特徵數</figcaption></figure>
+<table><thead><tr><th class="">演算法</th><th class="n">k（CV 最佳）</th><th class="n">k（1-SD）</th><th class="">選出的特徵</th><th class="n">CV RMSE</th><th class="n">Test RMSE</th><th class="n">Test R²</th></tr></thead><tbody><tr><td class="">Lasso (L1 Ranking)</td><td class="n">10</td><td class="n">4</td><td class="">Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths</td><td class="n">3.669</td><td class="n">3.708</td><td class="n">0.8528</td></tr><tr><td class="">Forward SFS</td><td class="n">11</td><td class="n">4</td><td class="">Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria</td><td class="n">3.662</td><td class="n">3.748</td><td class="n">0.8497</td></tr><tr><td class="">RFE</td><td class="n">11</td><td class="n">5</td><td class="">log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality</td><td class="n">3.644</td><td class="n">3.801</td><td class="n">0.8454</td></tr><tr><td class="">ElasticNet Ranking</td><td class="n">15</td><td class="n">4</td><td class="">Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality</td><td class="n">3.759</td><td class="n">3.840</td><td class="n">0.8421</td></tr></tbody></table>
+<h3>6.3 模型比較</h3><table><thead><tr><th class="">模型</th><th class="n">特徵數</th><th class="n">Test R²</th><th class="n">RMSE</th><th class="n">MAE</th><th class="n">MAPE</th><th class="n">分組 CV R²</th></tr></thead><tbody><tr><td class="">OLS (all features)</td><td class="n">19</td><td class="n">0.8699</td><td class="n">3.487</td><td class="n">2.675</td><td class="n">4.13%</td><td class="n">0.8464 ± 0.021</td></tr><tr><td class="">OLS (selected 4)</td><td class="n">4</td><td class="n">0.8497</td><td class="n">3.748</td><td class="n">2.815</td><td class="n">4.41%</td><td class="n">0.8422 ± 0.020</td></tr><tr><td class="">Ridge (all, CV alpha)</td><td class="n">19</td><td class="n">0.8703</td><td class="n">3.482</td><td class="n">2.671</td><td class="n">4.13%</td><td class="n">—</td></tr><tr><td class="">Lasso (all, CV alpha)</td><td class="n">19</td><td class="n">0.8681</td><td class="n">3.510</td><td class="n">2.662</td><td class="n">4.12%</td><td class="n">—</td></tr></tbody></table>
+<p>Ridge 與 Lasso 以分組交叉驗證挑選正則化強度，表現與全部特徵的 OLS 相近；精簡模型只用 4 個特徵，誤差只多約 0.26 歲，但更容易解釋。</p>
+<h3>6.4 最終模型</h3><p class="eq">Life expectancy = 49.082 + 32.6493 × Income composition of resources − 3.3603 × log HIV/AIDS − 0.0165 × Adult Mortality + 0.0380 × Diphtheria</p><table><thead><tr><th class="">變數</th><th class="n">係數</th><th class="n">SE</th><th class="n">p</th><th class="n">95% CI</th><th class="n">叢集穩健 SE</th><th class="n">叢集穩健 p</th><th class="n">標準化 β</th></tr></thead><tbody><tr><td class="">Intercept</td><td class="n">49.0816</td><td class="n">0.5149</td><td class="n">< .001</td><td class="n">[48.072, 50.091]</td><td class="n">1.6223</td><td class="n">< .001</td><td class="n">—</td></tr><tr><td class="">Income composition of resources</td><td class="n">32.6493</td><td class="n">0.6459</td><td class="n">< .001</td><td class="n">[31.383, 33.916]</td><td class="n">2.3721</td><td class="n">< .001</td><td class="n">0.537</td></tr><tr><td class="">log HIV/AIDS</td><td class="n">-3.3603</td><td class="n">0.1412</td><td class="n">< .001</td><td class="n">[-3.637, -3.084]</td><td class="n">0.3613</td><td class="n">< .001</td><td class="n">-0.264</td></tr><tr><td class="">Adult Mortality</td><td class="n">-0.0165</td><td class="n">0.0008</td><td class="n">< .001</td><td class="n">[-0.018, -0.015]</td><td class="n">0.0030</td><td class="n">< .001</td><td class="n">-0.216</td></tr><tr><td class="">Diphtheria</td><td class="n">0.0380</td><td class="n">0.0035</td><td class="n">< .001</td><td class="n">[0.031, 0.045]</td><td class="n">0.0128</td><td class="n">.003</td><td class="n">0.095</td></tr></tbody></table>
+<p>訓練集 n = 2336，R² = 0.8551，調整後 R² = 0.8548，F = 3,437.76（p < .001）。因同一國家內的誤差相關，推論以依國家分群的叢集穩健標準誤為準；四個係數仍全部顯著。</p>
+
+<h2 class="page">7. Evaluation 評估</h2>
+<p>在 37 個沒看過的國家上：R² <b>0.8497</b>、RMSE <b>3.75 歲</b>、MAE 2.82 歲、MAPE 4.41%；只猜平均的基準 RMSE 為 9.95 歲。分組 CV R² 為 0.842 ± 0.020。</p>
+<table><thead><tr><th class="">成功標準</th><th class="n">結果</th><th class="">判定</th></tr></thead><tbody><tr><td class="">測試集 R² ≥ 0.8</td><td class="n">0.8497</td><td class="">通過</td></tr><tr><td class="">測試集 RMSE ≤ 4.5 歲</td><td class="n">3.75 歲</td><td class="">通過</td></tr><tr><td class="">分組 CV R² ≥ 0.75</td><td class="n">0.8422</td><td class="">通過</td></tr></tbody></table>
+<h3>7.1 預測圖：95% 信賴區間與預測區間</h3>
+<figure><img src="../crispdm_output/07_prediction_intervals_test.png" style="width:100%"><figcaption>圖 6　測試集預測值（依預測值排序）與 95% 信賴區間（深色，平均約 ±0.32 歲）、95% 預測區間（淺色，平均約 ±7.05 歲）。實際值有 93.4% 落在預測區間內。</figcaption></figure>
+<figure><img src="../crispdm_output/08_simple_regression_intervals.png" style="width:90%"><figcaption>圖 7　單純線性迴歸：Life expectancy ~ Income composition of resources（R² = 0.726），含 95% 信賴區間與預測區間</figcaption></figure>
+<h3>7.2 殘差診斷與假設檢定</h3>
+<figure><img src="../crispdm_output/06_residual_diagnostics.png" style="width:100%"><figcaption>圖 8　實際 vs 預測、殘差 vs 預測值、殘差分布、常態 Q-Q 圖</figcaption></figure>
+<table><thead><tr><th class="">假設</th><th class="n">統計量</th><th class="n">p 值</th><th class="">結果</th></tr></thead><tbody><tr><td class="">線性（Ramsey RESET）</td><td class="n">29.454</td><td class="n">< .001</td><td class="">未通過</td></tr><tr><td class="">同質變異（Breusch-Pagan）</td><td class="n">119.750</td><td class="n">< .001</td><td class="">未通過</td></tr><tr><td class="">殘差常態（Jarque-Bera）</td><td class="n">758.008</td><td class="n">< .001</td><td class="">未通過</td></tr><tr><td class="">誤差獨立（Durbin-Watson）</td><td class="n">0.565</td><td class="n">—</td><td class="">未通過</td></tr><tr><td class="">無共線性（最大 VIF）</td><td class="n">1.981</td><td class="n">—</td><td class="">通過</td></tr><tr><td class="">影響點（Cook's D > 4/n 筆數）</td><td class="n">174</td><td class="n">—</td><td class="">參考</td></tr></tbody></table>
+<p>真實的跨國資料很難完全符合 OLS 假設：殘差有異質變異與非常態，且同一國家內的誤差高度相關（Durbin-Watson 0.56）。因此係數推論改用叢集穩健標準誤，並將非線性項與混合效果模型列為後續改進方向。最終特徵的最大 VIF 為 1.98，沒有共線性問題。</p>
+<h3>7.3 商業問題的答案</h3>
+<ol><li><b>最重要的指標：</b>Income composition of resources（標準化 β +0.537）、log HIV/AIDS（標準化 β -0.264）、Adult Mortality（標準化 β -0.216）、Diphtheria（標準化 β +0.095）。</li>
+<li><b>預測準確度：</b>對沒看過的國家，平均誤差約 2.8 歲（RMSE 3.75 歲）。</li>
+<li><b>不確定性：</b>單一國家年份的 95% 預測區間約 ±7.1 歲；平均值的信賴區間約 ±0.32 歲。</li></ol>
+
+<h2 class="page">8. Deployment 部署</h2>
+<p>通過評估後，以全部資料重新擬合最終模型並用 joblib 儲存（<span class="eq">crispdm_output/life_expectancy_model.joblib</span>）。<span class="eq">predict_life_expectancy()</span> 接受原始欄位，套用相同的清理、log 轉換與補值，回傳預測值、95% 信賴區間與預測區間。成果另部署為網站（報告與互動探索器）。</p>
+<table><thead><tr><th class="">國家（2014）</th><th class="n">實際</th><th class="n">預測</th><th class="n">95% 預測區間</th></tr></thead><tbody><tr><td class="">Azerbaijan</td><td class="n">72.5</td><td class="n">74.9</td><td class="n">67.8 – 82.0</td></tr><tr><td class="">Belgium</td><td class="n">89.0</td><td class="n">80.0</td><td class="n">73.0 – 87.1</td></tr><tr><td class="">Belize</td><td class="n">70.0</td><td class="n">72.3</td><td class="n">65.2 – 79.4</td></tr></tbody></table>
+<p class="note">Belgium 2014 年的實際值 89.0 歲明顯偏高（比利時實際約 81 歲），是原始資料的錯誤；模型預測約 80 歲反而合理，再次說明資料品質檢查的重要。</p>
+<p><b>監控計畫：</b>新年度資料公布時重新預測並比對；每年重新訓練，或滾動 RMSE 超過 5 歲時立即重訓；輸入超出訓練範圍時警示；定期檢查預測區間涵蓋率是否維持約 95%。</p>
+
+<h2>9. 結論、限制與未來改進</h2>
+<ul><li>只用 4 個特徵的線性模型，就能解釋沒看過的國家約 85% 的平均壽命差異；收入組成、HIV/AIDS 與成人死亡率是最主要的因子。</li>
+<li>依國家切分與同國中位數補值，是讓評估可信、模型更準的兩個關鍵。</li>
+<li>限制：資料有錯誤與大量缺值；相關不等於因果；OLS 假設未全部滿足；未納入環境污染等其他因子。</li>
+<li>未來改進：極端值縮尾處理、交互作用與非線性項、考慮國家內相關的混合效果模型，以及與隨機森林等非線性模型比較。</li></ul>
+
+<h2 class="page">10. GPT 輔助內容（AI 工具：Claude）</h2>
+<p>依作業規定標示：以下列出本專案中由生成式 AI 工具協助完成的部分；與 AI 的完整對話紀錄另以 PDF 繳交。</p>
+<p><b>使用的 AI 工具：</b></p>
+<ul><li><b>Claude（Claude Code）</b>：主要開發工具，負責程式撰寫、資料分析、網頁製作與報告文字草稿（含本報告書）。</li>
+<li><b>NotebookLM</b>：研究網路上同主題的解法並產生摘要（見第 11 節）。</li></ul>
+<p><b>AI 協助的部分：</b>資料集挑選建議、資料清理與補值策略、CRISP-DM 程式（main.py、feature_progression_analysis.py）、瀏覽器端統計引擎與特徵選擇演算法、網頁版面與圖表、報告文字草稿。</p>
+<p><b>本人負責與確認的部分：</b></p>
+<ul><li><b>作業方向：</b>依作業要求提出需求，包括 CRISP-DM 流程、加分項目（資料集下拉選單、任意輸入資料集）、指定 Boston Housing 必須出現在選單中。</li>
+<li><b>資料集決定：</b>參考作業說明中提供的資料集清單與 Claude 的建議，選定 WHO Life Expectancy，並自行從 Kaggle 下載資料。</li>
+<li><b>專案與部署：</b>建立 GitHub repository，將 HW2 與 HW1 分開管理；在 Vercel 與 GitHub Pages 完成部署設定。</li>
+<li><b>網站設計方向：</b>指定版面參考網站、選擇配色風格與黑貓元素，並多次檢視畫面、提出修改。</li>
+<li><b>研究：</b>使用 NotebookLM 整理同主題文獻並產生摘要。</li>
+<li><b>檢查與確認：</b>檢視分析結果、網站與報告內容，決定最終繳交版本。</li></ul>
+<p><b>驗證方式：</b>網頁計算結果已與 Python（statsmodels、scikit-learn）逐項比對一致。</p>
+
+<h2>11. NotebookLM 摘要</h2>
+<p>使用 NotebookLM 研究網路上同主題（WHO Life Expectancy 迴歸分析）的解法後產生的摘要：</p>
+<blockquote><b>資料清理</b>多採用插值法填補缺漏值、縮尾處理（Winsorization）極端值，並校正數據末端零被截斷的錯誤。<b>核心預測因子</b>包含成人死亡率、受教育年數、HIV/AIDS 死亡率、資源收入組成（HDI）及疫苗覆蓋率。<b>使用模型</b>涵蓋多元線性迴歸、Ridge 與 Lasso 正則化模型及隨機森林；其中隨機森林與二次多項式迴歸<b>評估結果</b>最佳（R² 達 0.92 以上）。<b>常見限制</b>則為原始資料缺漏率高、變數間存在高度共線性，以及未納入環境污染等潛在因子。</blockquote>
+<h3>NotebookLM 使用的來源</h3><ol><li>Kaggle：Life Expectancy (WHO) 資料集頁面：<a href="https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who">https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who</a></li><li>Enjoy Algorithms：Predicting Life Expectancy Using Linear Regression：<a href="https://www.enjoyalgorithms.com/blog/life-expectancy-prediction-using-linear-regression/">https://www.enjoyalgorithms.com/blog/life-expectancy-prediction-using-linear-regression/</a></li><li>NYC Data Science Academy：Modeling Life Expectancy：<a href="https://nycdatascience.com/blog/student-works/life-expectancy-by-country/">https://nycdatascience.com/blog/student-works/life-expectancy-by-country/</a></li><li>Kaggle：WHO Life Expectancy - Multi Linear Regression：<a href="https://www.kaggle.com/code/captainozlem/who-life-expectancy-multi-linear-regression">https://www.kaggle.com/code/captainozlem/who-life-expectancy-multi-linear-regression</a></li><li>CAUSE USCLAP：Analyzing Significant Predictors of Life Expectancy across Countries：<a href="https://www.causeweb.org/usproc/sites/default/files/usclap/2022-1/analyzing-significant-predictors-of-life-expectancy-across-countries.pdf">https://www.causeweb.org/usproc/sites/default/files/usclap/2022-1/analyzing-significant-predictors-of-life-expectancy-across-countries.pdf</a></li><li>arXiv 2510.00542：線性迴歸、決策樹與隨機森林的比較：<a href="https://arxiv.org/abs/2510.00542">https://arxiv.org/abs/2510.00542</a></li><li>iJOE（2022）：Life Expectancy Prediction through Analysis of Immunization and HDI Factors：<a href="https://online-journals.org/index.php/i-joe/article/view/33315">https://online-journals.org/index.php/i-joe/article/view/33315</a></li><li>GitHub：frinkleko/life-expectancy：<a href="https://github.com/frinkleko/life-expectancy">https://github.com/frinkleko/life-expectancy</a></li></ol>
+<h3>與本專案的比較（本專案自行分析，非 NotebookLM 內容）</h3>
+<ul><li><b>預測因子一致：</b>文獻指出的成人死亡率、HIV/AIDS、收入組成指數與疫苗覆蓋率，正是本專案選出的 4 個特徵。</li>
+<li><b>R² 較低的原因：</b>文獻的 R² 0.92 以上多半來自隨機切分；本專案依國家切分，測試國家完全沒出現在訓練中，R² 0.850 是更接近實際應用的估計。</li>
+<li><b>模型選擇：</b>隨機森林與多項式迴歸分數較高但不再是線性模型、較難解釋；本專案依作業要求使用線性迴歸，並以 Ridge／Lasso 確認正則化沒有明顯改善。</li>
+<li><b>資料清理：</b>文獻用插值與縮尾處理；本專案用同國中位數補值、刪除錯誤過多的 BMI 欄、偏態變數取 log。縮尾處理與非線性項可列為後續改進方向。</li></ul>
+
+<h2>12. 參考資料</h2><ol>
+<li>KumarRajarshi. Life Expectancy (WHO). Kaggle. <a href="https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who">https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who</a></li>
+<li>Chapman, P. et al. (2000). CRISP-DM 1.0: Step-by-step data mining guide.</li>
+<li>Pedregosa, F. et al. (2011). Scikit-learn: Machine Learning in Python. JMLR 12, 2825–2830.</li>
+<li>Seabold, S. &amp; Perktold, J. (2010). statsmodels: Econometric and statistical modeling with Python.</li>
+<li>版面參考：AIoT-DIC2 Multiple LR Explorer <a href="https://huanchen1107.github.io/AIoT-DIC2-MultipleLR/">https://huanchen1107.github.io/AIoT-DIC2-MultipleLR/</a>；StatsUnlock Multiple Linear Regression Calculator <a href="https://statsunlock.com/multiple-linear-regression-calculator/">https://statsunlock.com/multiple-linear-regression-calculator/</a></li>
+<li>第 11 節所列 NotebookLM 來源。</li></ol>
+</body></html>
