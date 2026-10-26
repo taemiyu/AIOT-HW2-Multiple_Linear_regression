@@ -1,135 +1,221 @@
 {
-  "business_objective": "Help a venture capital fund estimate a startup's annual profit from its spending profile and location.",
-  "situation": {
-    "resources": "One public CSV (50 rows), Python + scikit-learn.",
-    "assumptions": "Spend figures are annual and comparable across startups.",
-    "constraints": "Tiny sample -> no deep models; must stay interpretable.",
-    "risks": [
-      "Small sample -> unstable estimates (mitigate: cross-validation).",
-      "Zero spend values may be missing data rather than true zeros."
+  "dataset": {
+    "name": "Life Expectancy (WHO)",
+    "kaggle_url": "https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who",
+    "file": "datasets/LifeExpectancy_WHO.csv",
+    "rows": 2938,
+    "cols": 22,
+    "countries": 193,
+    "years": [
+      2000,
+      2015
     ],
-    "cost_benefit": "Cheap to build; wrong predictions cost the fund money, so the model supports, not replaces, analyst judgment."
-  },
-  "vif": {
-    "R&D Spend": 2.57,
-    "Administration": 1.15,
-    "Marketing Spend": 2.54
-  },
-  "feature_selection": {
-    "R&D Spend": {
-      "pearson_r": 0.973,
-      "f_score": 676.1035,
-      "rfe_rank": 1,
-      "lasso_coef": 37233.5644,
-      "rf_importance_pct": 92.6821
-    },
-    "Marketing Spend": {
-      "pearson_r": 0.7738,
-      "f_score": 56.6907,
-      "rfe_rank": 2,
-      "lasso_coef": 3547.6581,
-      "rf_importance_pct": 6.3461
-    },
-    "State_New York": {
-      "pearson_r": 0.105,
-      "f_score": 0.4238,
-      "rfe_rank": 5,
-      "lasso_coef": -0.0,
-      "rf_importance_pct": 0.1204
-    },
-    "State_Florida": {
-      "pearson_r": 0.0955,
-      "f_score": 0.3497,
-      "rfe_rank": 4,
-      "lasso_coef": 0.0,
-      "rf_importance_pct": 0.1724
-    },
-    "Administration": {
-      "pearson_r": 0.0902,
-      "f_score": 0.312,
-      "rfe_rank": 3,
-      "lasso_coef": -1061.177,
-      "rf_importance_pct": 0.679
+    "target": "Life expectancy",
+    "features_raw": [
+      "Year",
+      "Status",
+      "Adult Mortality",
+      "infant deaths",
+      "Alcohol",
+      "percentage expenditure",
+      "Hepatitis B",
+      "Measles",
+      "BMI",
+      "under-five deaths",
+      "Polio",
+      "Total expenditure",
+      "Diphtheria",
+      "HIV/AIDS",
+      "GDP",
+      "Population",
+      "thinness 1-19 years",
+      "thinness 5-9 years",
+      "Income composition of resources",
+      "Schooling"
+    ],
+    "features": [
+      "Year",
+      "Adult Mortality",
+      "Alcohol",
+      "Hepatitis B",
+      "Polio",
+      "Total expenditure",
+      "Diphtheria",
+      "thinness 1-19 years",
+      "thinness 5-9 years",
+      "Income composition of resources",
+      "Schooling",
+      "log Population",
+      "log infant deaths",
+      "log under-five deaths",
+      "log Measles",
+      "log HIV/AIDS",
+      "log percentage expenditure",
+      "log GDP",
+      "Status_Developing"
+    ],
+    "status_counts": {
+      "Developing": 2426,
+      "Developed": 512
     }
   },
-  "feature_selection_comparison": [
+  "business": {
+    "objective": "Help health policy analysts estimate a country's life expectancy from health, economic and social indicators, and identify which indicators matter most.",
+    "business_questions": [
+      "Which indicators are most strongly associated with life expectancy?",
+      "How accurately can life expectancy be predicted for a country the model has never seen?",
+      "How uncertain is a single prediction (prediction interval)?"
+    ],
+    "data_mining_goal": "Multiple linear regression: Life expectancy = f(indicators), with feature selection, evaluated on unseen countries.",
+    "success_criteria": {
+      "test_R2_min": 0.8,
+      "test_RMSE_max": 4.5,
+      "cv_R2_min": 0.75
+    }
+  },
+  "final": {
+    "method": "Forward SFS",
+    "k": 4,
+    "features": [
+      "Income composition of resources",
+      "log HIV/AIDS",
+      "Adult Mortality",
+      "Diphtheria"
+    ],
+    "cv_rmse": 3.6619,
+    "best_method": "Forward SFS",
+    "best_k": 11,
+    "best_cv_rmse": 3.5028,
+    "best_cv_sd": 0.1879
+  },
+  "models": [
     {
-      "Method": "Lasso (L1 Ranking)",
-      "Best Number of Features": 3,
-      "Selected Features": "R&D Spend, Marketing Spend, Administration",
-      "CV RMSE (train)": 9104.6812,
-      "Test RMSE": 8995.9058,
-      "Test R-squared": 0.9001
+      "name": "OLS (all features)",
+      "n_features": 19,
+      "R2": 0.8698981549,
+      "RMSE": 3.4865030971,
+      "MAE": 2.6752984385,
+      "MAPE_pct": 4.1323572415,
+      "cv_r2_mean": 0.8463887892,
+      "cv_r2_std": 0.020561561
     },
     {
-      "Method": "Forward SFS",
-      "Best Number of Features": 3,
-      "Selected Features": "R&D Spend, Administration, Marketing Spend",
-      "CV RMSE (train)": 9104.6812,
-      "Test RMSE": 8995.9058,
-      "Test R-squared": 0.9001
+      "name": "OLS (selected 4)",
+      "n_features": 4,
+      "R2": 0.8496819942,
+      "RMSE": 3.7476051768,
+      "MAE": 2.8151319649,
+      "MAPE_pct": 4.413037807,
+      "cv_r2_mean": 0.8421722605,
+      "cv_r2_std": 0.0197869226
     },
     {
-      "Method": "RFE",
-      "Best Number of Features": 3,
-      "Selected Features": "R&D Spend, Marketing Spend, Administration",
-      "CV RMSE (train)": 9104.6812,
-      "Test RMSE": 8995.9058,
-      "Test R-squared": 0.9001
+      "name": "Ridge (all, CV alpha)",
+      "n_features": 19,
+      "R2": 0.8702673655,
+      "RMSE": 3.4815524805,
+      "MAE": 2.6706645297,
+      "MAPE_pct": 4.1259040763,
+      "cv_r2_mean": null,
+      "cv_r2_std": null
     },
     {
-      "Method": "ElasticNet Ranking",
-      "Best Number of Features": 2,
-      "Selected Features": "R&D Spend, Marketing Spend",
-      "CV RMSE (train)": 9186.6804,
-      "Test RMSE": 8206.3288,
-      "Test R-squared": 0.9168
-    },
-    {
-      "Method": "Exhaustive Search",
-      "Best Number of Features": 3,
-      "Selected Features": "R&D Spend, Administration, Marketing Spend",
-      "CV RMSE (train)": 9104.6812,
-      "Test RMSE": 8995.9058,
-      "Test R-squared": 0.9001
+      "name": "Lasso (all, CV alpha)",
+      "n_features": 19,
+      "R2": 0.868129373,
+      "RMSE": 3.5101232258,
+      "MAE": 2.6617574344,
+      "MAPE_pct": 4.1216506517,
+      "cv_r2_mean": null,
+      "cv_r2_std": null
     }
   ],
-  "selected_features": [
-    "R&D Spend"
+  "metrics": {
+    "R2": 0.8497,
+    "RMSE": 3.7476,
+    "MAE": 2.8151,
+    "MAPE_pct": 4.413,
+    "baseline_rmse": 9.9487,
+    "cv_r2_mean": 0.8422,
+    "cv_r2_std": 0.0198,
+    "pi_coverage": 0.9341
+  },
+  "assumptions": [
+    {
+      "name": "Linearity (Ramsey RESET)",
+      "stat": 29.453913088768246,
+      "p": 2.3303548099899027e-13,
+      "pass": false
+    },
+    {
+      "name": "Homoscedasticity (Breusch-Pagan)",
+      "stat": 119.75027707917613,
+      "p": 6.039454193008364e-25,
+      "pass": false
+    },
+    {
+      "name": "Normality of residuals (Jarque-Bera)",
+      "stat": 758.008308823658,
+      "p": 2.5152845346158624e-165,
+      "pass": false
+    },
+    {
+      "name": "Independence (Durbin-Watson, by country/year)",
+      "stat": 0.5649084933478422,
+      "p": null,
+      "pass": false
+    },
+    {
+      "name": "No multicollinearity (max VIF)",
+      "stat": 1.9812149471913627,
+      "p": null,
+      "pass": true
+    },
+    {
+      "name": "Influential points (Cook's D > 4/n)",
+      "stat": 174,
+      "p": null,
+      "pass": null
+    }
   ],
-  "test_metrics_selected": {
-    "R2": 0.9265,
-    "Adj_R2": 0.9173,
-    "MAE": 6077.3633,
-    "RMSE": 7714.3349,
-    "MAPE_pct": 9.136
-  },
-  "test_metrics_full": {
-    "R2": 0.8987,
-    "Adj_R2": 0.7721,
-    "MAE": 6961.4778,
-    "RMSE": 9055.9573,
-    "MAPE_pct": 10.2782
-  },
-  "cv_r2_mean": 0.9374,
-  "cv_r2_std": 0.0373,
-  "success_criteria_passed": {
-    "Test R2 >= 0.9": true,
-    "CV R2 >= 0.85": true,
-    "MAPE <= 10.0%": true
-  },
-  "process_review": {
-    "Test set touched only after model selection": true,
-    "Scaler/encoder fitted inside pipeline (no leakage)": true,
-    "Multicollinearity acceptable (all VIF <= 10)": true,
-    "Model beats naive baseline RMSE": true
-  },
+  "success_criteria": [
+    {
+      "name": "Test R2 >= 0.8",
+      "passed": true
+    },
+    {
+      "name": "Test RMSE <= 4.5 years",
+      "passed": true
+    },
+    {
+      "name": "Grouped CV R2 >= 0.75",
+      "passed": true
+    }
+  ],
+  "process_review": [
+    {
+      "name": "Split by country (no country in both train and test)",
+      "ok": true
+    },
+    {
+      "name": "Fallback imputation medians computed on training rows only",
+      "ok": true
+    },
+    {
+      "name": "Feature selection used grouped CV on training data only",
+      "ok": true
+    },
+    {
+      "name": "Selected model beats the mean-only baseline",
+      "ok": true
+    }
+  ],
   "approved": true,
-  "next_steps": "Proceed to Phase 6 (deployment).",
+  "next_steps": "Proceed to Phase 6 (deployment). Note: Linearity (Ramsey RESET); Homoscedasticity (Breusch-Pagan); Normality of residuals (Jarque-Bera); Independence (Durbin-Watson, by country/year) not satisfied - report cluster-robust standard errors and treat p-values with care.",
   "monitoring_plan": [
-    "Log every prediction with its inputs; compare to actual profit when reported.",
-    "Retrain quarterly or when rolling MAPE exceeds 15%.",
-    "Alert if new inputs fall outside training ranges (data drift).",
-    "Alert on unseen State values (encoder ignores them -> baseline state)."
+    "Re-score when WHO publishes a new year of indicators; compare with reported life expectancy.",
+    "Retrain yearly, or when the rolling RMSE on new years exceeds 5 years.",
+    "Alert when inputs fall outside the training range (data drift).",
+    "Check that prediction-interval coverage stays near 95%."
   ]
 }

@@ -1,5 +1,5 @@
 """
-50 Startups - Multiple Linear Regression with scikit-learn
+WHO Life Expectancy - Multiple Linear Regression
 Methodology: CRISP-DM (Cross-Industry Standard Process for Data Mining)
 
   Phase 1  Business Understanding
@@ -9,23 +9,23 @@ Methodology: CRISP-DM (Cross-Industry Standard Process for Data Mining)
   Phase 5  Evaluation
   Phase 6  Deployment
 
-Dataset: 50_Startups.csv (Kaggle)
-Columns: R&D Spend, Administration, Marketing Spend, State, Profit
-
-Outputs:
-    crispdm_output/                 phase plots, trained model, final_report.json
-    *_progression.csv / *_plot.png  5 feature-selection algorithms (Phase 4)
-    model_data.json / model_data.js data for the web report (index.html)
+Dataset: "Life Expectancy (WHO)" on Kaggle, by KumarRajarshi
+         https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who
+         2,938 rows (193 countries x 2000-2015), 22 columns, 20 candidate
+         features + Country + target "Life expectancy".
 
 Usage:
-    python main.py                  # uses ./50_Startups.csv (downloads it if missing)
-    python main.py path/to/file.csv
+    python main.py            # expects datasets/LifeExpectancy_WHO.csv
+
+Outputs:
+    crispdm_output/                  phase plots, model, final_report.json, run log
+    *_progression.csv / *_plot.png   feature-selection algorithms (Phase 4)
+    datasets/who_prepared.csv        cleaned + imputed data used by the web app
+    model_data.json / model_data.js  data for the web report (index.html, app.html)
 """
 
-import sys
 import json
-import hashlib
-from itertools import combinations
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -34,28 +34,31 @@ import matplotlib
 matplotlib.use("Agg")                      # save plots to files, no GUI needed
 import matplotlib.pyplot as plt
 import joblib
-import requests
+import statsmodels.api as sm
+from statsmodels.stats.diagnostic import het_breuschpagan, linear_reset
+from statsmodels.stats.stattools import jarque_bera, durbin_watson
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from scipy import stats
+
+from sklearn.model_selection import GroupShuffleSplit, GroupKFold
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+from sklearn.linear_model import LinearRegression, RidgeCV, LassoCV
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 import feature_progression_analysis as fpa
 
-from sklearn.model_selection import train_test_split, KFold, cross_val_score
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.pipeline import Pipeline
-from sklearn.linear_model import LinearRegression, LassoCV
-from sklearn.feature_selection import SelectKBest, f_regression, RFE
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
-
-RANDOM_STATE = 42
-TEST_SIZE = 0.2
 BASE_DIR = Path(__file__).resolve().parent
 OUT_DIR = BASE_DIR / "crispdm_output"
 OUT_DIR.mkdir(exist_ok=True)
+DATA_PATH = BASE_DIR / "datasets" / "LifeExpectancy_WHO.csv"
+KAGGLE_URL = "https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who"
 
-TARGET = "Profit"
-NUMERIC = ["R&D Spend", "Administration", "Marketing Spend"]
-CATEGORICAL = ["State"]
+RANDOM_STATE = 42
+TEST_SIZE = 0.2
+ALPHA = 0.05
+TARGET = "Life expectancy"
+GROUP = "Country"
 
 
 def banner(title):
@@ -64,53 +67,61 @@ def banner(title):
     print("=" * 70)
 
 
+def savefig(name):
+    plt.tight_layout()
+    plt.savefig(OUT_DIR / name, dpi=120)
+    plt.close()
+
+
 # =====================================================================
 # PHASE 1: BUSINESS UNDERSTANDING
 # =====================================================================
 banner("PHASE 1: BUSINESS UNDERSTANDING")
-# 1.1 Determine business objectives  /  1.3 Determine data mining goals
+
+# 1.1 Business objectives  /  1.3 Data mining goals
 business = {
-    "objective": "Help a venture capital fund estimate a startup's annual "
-                 "profit from its spending profile and location.",
+    "objective": "Help health policy analysts estimate a country's life expectancy "
+                 "from health, economic and social indicators, and identify which "
+                 "indicators matter most.",
     "business_questions": [
-        "Which spending category (R&D, Administration, Marketing) drives profit most?",
-        "Does the state where the startup operates affect profit?",
-        "How accurately can profit be predicted for a new startup?",
+        "Which indicators are most strongly associated with life expectancy?",
+        "How accurately can life expectancy be predicted for a country the model has never seen?",
+        "How uncertain is a single prediction (prediction interval)?",
     ],
-    "data_mining_goal": "Build a multiple linear regression model "
-                        "Profit = f(R&D, Admin, Marketing, State).",
-    "success_criteria": {
-        "test_R2_min": 0.90,
-        "cv_R2_min": 0.85,
-        "MAPE_max_pct": 10.0,
-    },
+    "data_mining_goal": "Multiple linear regression: Life expectancy = f(indicators), "
+                        "with feature selection, evaluated on unseen countries.",
+    # Set before modeling; judged on countries held out from training.
+    "success_criteria": {"test_R2_min": 0.80, "test_RMSE_max": 4.5, "cv_R2_min": 0.75},
 }
 for k, v in business.items():
     print(f"{k}: {v}")
 
-# 1.2 Assess situation: resources, constraints, risks, costs/benefits
+# 1.2 Assess situation
 situation = {
-    "resources": "One public CSV (50 rows), Python + scikit-learn.",
-    "assumptions": "Spend figures are annual and comparable across startups.",
-    "constraints": "Tiny sample -> no deep models; must stay interpretable.",
+    "resources": "One public Kaggle CSV (2,938 rows, 22 columns), Python with "
+                 "scikit-learn and statsmodels.",
+    "assumptions": "Indicators are comparable across countries and years.",
+    "constraints": "The model must stay interpretable (linear) for policy discussion.",
     "risks": [
-        "Small sample -> unstable estimates (mitigate: cross-validation).",
-        "Zero spend values may be missing data rather than true zeros.",
+        "Many missing values (44% of rows have at least one).",
+        "Implausible values (e.g. average BMI above 50) indicate data-entry errors.",
+        "Each country appears up to 16 times; a random split would leak the same "
+        "country into training and testing.",
     ],
-    "cost_benefit": "Cheap to build; wrong predictions cost the fund money, "
-                    "so the model supports, not replaces, analyst judgment.",
+    "cost_benefit": "Cheap to build; useful for prioritising health spending, but "
+                    "associations are not causal effects.",
 }
 print("\n--- 1.2 Situation assessment ---")
 for k, v in situation.items():
     print(f"{k}: {v}")
 
-# 1.4 Produce project plan
+# 1.4 Project plan
 project_plan = [
-    "Phase 2: profile data, correlations, quality checks",
-    "Phase 3: clean, encode State, split train/test",
-    "Phase 4: OLS on every feature subset, choose by CV R2",
-    "Phase 5: test-set metrics vs success criteria, decide go/no-go",
-    "Phase 6: deploy only if approved; write final report",
+    "Phase 2: profile data, missing values, implausible values, correlations",
+    "Phase 3: clean, log-transform skewed variables, split by country, impute (same-country median, then training median)",
+    "Phase 4: VIF, feature selection (Lasso, Forward SFS, RFE, ElasticNet), OLS / Ridge / Lasso",
+    "Phase 5: test metrics vs success criteria, assumption checks, prediction intervals",
+    "Phase 6: deploy only if approved; save model and report",
 ]
 print("\n--- 1.4 Project plan ---")
 for step in project_plan:
@@ -122,103 +133,88 @@ for step in project_plan:
 # =====================================================================
 banner("PHASE 2: DATA UNDERSTANDING")
 
-# 2.1 Collect initial data: use the local CSV, or download it from a public
-#     GitHub copy of the Kaggle file and verify it is the known version.
-DATA_URL = ("https://raw.githubusercontent.com/krishnaik06/"
-            "Multiple-Linear-Regression/master/50_Startups.csv")
-DATA_SHA256 = "c6075ca5a7551243"   # prefix of the verified file's SHA-256
+# 2.1 Collect initial data
+if not DATA_PATH.exists():
+    sys.exit(f"{DATA_PATH} not found. Download it from {KAGGLE_URL} "
+             "and save 'Life Expectancy Data.csv' as datasets/LifeExpectancy_WHO.csv.")
+raw = pd.read_csv(DATA_PATH)
+raw.columns = [" ".join(c.split()) for c in raw.columns]   # strip stray spaces in names
+print(f"Loaded {DATA_PATH.name}: {raw.shape[0]} rows x {raw.shape[1]} columns")
+print(f"Source: {KAGGLE_URL}")
 
-csv_path = Path(sys.argv[1]) if len(sys.argv) > 1 else BASE_DIR / "50_Startups.csv"
-if not csv_path.exists():
-    print(f"{csv_path.name} not found -> downloading {DATA_URL}")
-    resp = requests.get(DATA_URL, timeout=30)
-    if resp.status_code != 200:
-        sys.exit(f"Download failed: HTTP {resp.status_code}")
-    content = resp.content
-    digest = hashlib.sha256(content).hexdigest()
-    if not digest.startswith(DATA_SHA256):
-        sys.exit(f"Downloaded file has unexpected SHA-256 {digest[:16]}; not using it.")
-    csv_path.write_bytes(content)
-    print(f"Downloaded and verified ({len(content)} bytes)")
-df = pd.read_csv(csv_path)
-print(f"Loaded {csv_path}: {df.shape[0]} rows x {df.shape[1]} columns")
+FEATURES_RAW = [c for c in raw.columns if c not in (GROUP, TARGET)]
+print(f"Candidate features ({len(FEATURES_RAW)}): {FEATURES_RAW}")
 
 # 2.2 Describe data
 print("\n--- Head ---")
-print(df.head())
-print("\n--- Data types ---")
-print(df.dtypes)
+print(raw.head())
 print("\n--- Descriptive statistics ---")
-print(df.describe().T)
-print("\n--- State frequency ---")
-print(df["State"].value_counts())
+print(raw.describe().T.round(2))
+print(f"\nCountries: {raw[GROUP].nunique()}, years {raw['Year'].min()}-{raw['Year'].max()}")
+print("Status:", raw["Status"].value_counts().to_dict())
 
 # 2.3 Explore data
-corr = df[NUMERIC + [TARGET]].corr()
-print("\n--- Correlation matrix ---")
-print(corr.round(3))
-print("\n--- Correlation with Profit (sorted) ---")
-print(corr[TARGET].drop(TARGET).sort_values(ascending=False).round(3))
-print("\n--- Mean profit by State ---")
-print(df.groupby("State")[TARGET].agg(["mean", "std", "count"]).round(1))
+numeric_raw = raw.select_dtypes("number")
+corr_target = numeric_raw.corr()[TARGET].drop(TARGET).sort_values()
+print("\n--- Correlation with life expectancy ---")
+print(corr_target.round(3))
 
-fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-for ax, col in zip(axes, NUMERIC):
-    ax.scatter(df[col], df[TARGET], alpha=0.7)
+fig, ax = plt.subplots(figsize=(8, 7))
+colors = ["tab:red" if v < 0 else "tab:blue" for v in corr_target]
+ax.barh(corr_target.index, corr_target.values, color=colors)
+ax.axvline(0, color="black", lw=0.8)
+ax.set_title("Pearson correlation with Life expectancy")
+savefig("03_correlation_with_target.png")
+
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.hist(raw[TARGET].dropna(), bins=30, edgecolor="black")
+ax.set_title("Life expectancy distribution")
+ax.set_xlabel("Years")
+savefig("02_target_distribution.png")
+
+top6 = corr_target.abs().sort_values(ascending=False).index[:6]
+fig, axes = plt.subplots(2, 3, figsize=(15, 8))
+for ax, col in zip(axes.ravel(), top6):
+    ax.scatter(raw[col], raw[TARGET], s=6, alpha=0.4)
     ax.set_xlabel(col)
     ax.set_ylabel(TARGET)
-    ax.set_title(f"{col} vs Profit (r={corr.loc[col, TARGET]:.2f})")
-plt.tight_layout()
-plt.savefig(OUT_DIR / "01_scatter_features_vs_profit.png", dpi=120)
-plt.close()
-
-fig, ax = plt.subplots(figsize=(6, 5))
-im = ax.imshow(corr, cmap="coolwarm", vmin=-1, vmax=1)
-ax.set_xticks(range(len(corr)))
-ax.set_xticklabels(corr.columns, rotation=45, ha="right")
-ax.set_yticks(range(len(corr)))
-ax.set_yticklabels(corr.columns)
-for i in range(len(corr)):
-    for j in range(len(corr)):
-        ax.text(j, i, f"{corr.iloc[i, j]:.2f}", ha="center", va="center")
-fig.colorbar(im)
-plt.title("Correlation heatmap")
-plt.tight_layout()
-plt.savefig(OUT_DIR / "02_correlation_heatmap.png", dpi=120)
-plt.close()
-
-df.boxplot(column=TARGET, by="State", figsize=(6, 4))
-plt.suptitle("")
-plt.title("Profit by State")
-plt.tight_layout()
-plt.savefig(OUT_DIR / "03_profit_by_state.png", dpi=120)
-plt.close()
-
-fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-axes[0].hist(df[TARGET], bins=10, edgecolor="black")
-axes[0].set_title("Profit distribution")
-axes[1].boxplot(df[TARGET])
-axes[1].set_title("Profit boxplot")
-counts = df["State"].value_counts()
-axes[2].bar(counts.index, counts.values)
-axes[2].set_title("Startups per State")
-plt.tight_layout()
-plt.savefig(OUT_DIR / "05_eda_distributions.png", dpi=120)
-plt.close()
+    ax.set_title(f"{col} (r={corr_target[col]:.2f})")
+savefig("05_top_features_scatter.png")
 
 # 2.4 Verify data quality
-print("\n--- Data quality ---")
-print("Missing values per column:\n", df.isna().sum())
-print("Duplicate rows:", df.duplicated().sum())
-zero_counts = (df[NUMERIC] == 0).sum()
-print("Zero values per numeric column (possible missing data):\n", zero_counts)
+missing = raw.isna().sum()
+missing = missing[missing > 0].sort_values(ascending=False)
+print("\n--- Missing values ---")
+print(missing)
+print(f"Rows with any missing value: {int(raw.isna().any(axis=1).sum())} "
+      f"({raw.isna().any(axis=1).mean() * 100:.1f}%)")
+print("Duplicate rows:", int(raw.duplicated().sum()))
 
-q1, q3 = df[TARGET].quantile([0.25, 0.75])
-iqr = q3 - q1
-outliers = df[(df[TARGET] < q1 - 1.5 * iqr) | (df[TARGET] > q3 + 1.5 * iqr)]
-print(f"Profit outliers (IQR rule): {len(outliers)}")
-if len(outliers):
-    print(outliers)
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.barh(missing.index[::-1], missing.values[::-1], color="tab:orange")
+ax.set_title("Missing values per column")
+savefig("01_missing_values.png")
+
+quality_rules = [
+    ("BMI below 10 or above 50 (not a plausible national average)",
+     (raw["BMI"] < 10) | (raw["BMI"] > 50), "Drop the BMI column (too many wrong values to impute)"),
+    ("Schooling = 0 years", raw["Schooling"] == 0, "Treat as missing, impute"),
+    ("Income composition of resources = 0", raw["Income composition of resources"] == 0,
+     "Treat as missing, impute"),
+    ("Percentage expenditure = 0", raw["percentage expenditure"] == 0, "Treat as missing, impute"),
+    ("Life expectancy missing (target)", raw[TARGET].isna(), "Drop row"),
+]
+quality = [{"issue": name, "count": int(mask.sum()), "pct": round(float(mask.mean() * 100), 1),
+            "action": action} for name, mask, action in quality_rules]
+print("\n--- Implausible / problematic values ---")
+for q in quality:
+    print(f"{q['issue']:60s} {q['count']:5d} ({q['pct']:4.1f}%) -> {q['action']}")
+
+skewed = ["Population", "infant deaths", "under-five deaths", "Measles", "HIV/AIDS",
+          "percentage expenditure", "GDP"]
+skew_before = raw[skewed].skew().round(2)
+print("\n--- Skewness (will be log-transformed) ---")
+print(skew_before)
 
 
 # =====================================================================
@@ -227,67 +223,61 @@ if len(outliers):
 banner("PHASE 3: DATA PREPARATION")
 
 # 3.1 Select data
-data = df[NUMERIC + CATEGORICAL + [TARGET]].copy()
+data = raw.dropna(subset=[TARGET]).drop(columns=["BMI"]).reset_index(drop=True)
+print(f"Dropped {len(raw) - len(data)} rows without target and the BMI column -> {data.shape}")
 
-# 3.2 Clean data
-before = len(data)
-data = data.drop_duplicates().dropna()
-print(f"Rows after removing duplicates/NaN: {len(data)} (removed {before - len(data)})")
-# Zeros in spend columns are kept: a startup can genuinely spend $0 on a
-# category, and dropping rows from only 50 samples would cost too much data.
-data["State"] = data["State"].str.strip()
-# Profit outliers found in 2.4 are kept: they are real companies, not
-# entry errors, and removing them would bias the model toward the middle.
+# 3.2 Clean data: impossible zeros -> missing
+for col in ["Schooling", "Income composition of resources", "percentage expenditure"]:
+    data.loc[data[col] == 0, col] = np.nan
 
-# 3.3 Construct data -> no derived features; MLR uses raw spend + State.
-# 3.4 Integrate data -> single source, nothing to merge.
+# 3.3 Construct data: log-transform heavily skewed variables, encode Status
+LOG_COLS = {c: f"log {c}" for c in skewed}
+for c, new in LOG_COLS.items():
+    data[new] = np.log1p(data[c])
+data = data.drop(columns=list(LOG_COLS))
+data["Status_Developing"] = (data["Status"] == "Developing").astype(float)
+data = data.drop(columns=["Status"])
+FEATURES = [c for c in data.columns if c not in (GROUP, TARGET)]
+skew_after = data[list(LOG_COLS.values())].skew().round(2)
+print(f"Log-transformed: {list(LOG_COLS)}")
+print("Skewness after log:", skew_after.to_dict())
+print(f"Final candidate features ({len(FEATURES)}): {FEATURES}")
 
-# 3.5 Format data: split X / y and train / test BEFORE any fitting
-X = data[NUMERIC + CATEGORICAL]
-y = data[TARGET]
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE
-)
-print(f"Train: {X_train.shape}, Test: {X_test.shape}")
+# 3.4 Format data: split by COUNTRY so no country is in both train and test
+gss = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+train_idx, test_idx = next(gss.split(data, groups=data[GROUP]))
+train_idx, test_idx = np.sort(train_idx), np.sort(test_idx)
+train_countries = sorted(data.loc[train_idx, GROUP].unique())
+test_countries = sorted(data.loc[test_idx, GROUP].unique())
+assert not set(train_countries) & set(test_countries)
+print(f"Train: {len(train_idx)} rows / {len(train_countries)} countries; "
+      f"Test: {len(test_idx)} rows / {len(test_countries)} countries (no overlap)")
 
-# Encoding + scaling inside a ColumnTransformer so it is fitted on the
-# training set only (prevents data leakage). drop="first" avoids the
-# dummy-variable trap for linear regression.
-def make_preprocessor(num_cols, cat_cols):
-    transformers = []
-    if num_cols:
-        transformers.append(("num", StandardScaler(), num_cols))
-    if cat_cols:
-        transformers.append(
-            ("cat", OneHotEncoder(drop="first", handle_unknown="ignore"), cat_cols)
-        )
-    return ColumnTransformer(transformers)
+# 3.5 Impute: first the median of the SAME country's other years (indicators
+#     change slowly within a country; uses feature values only, never the
+#     target), then the TRAINING-set median for countries with no value at all.
+medians = data.loc[train_idx, FEATURES].median()
+missing_before = data[FEATURES].isna().sum()
+country_median = data.groupby(GROUP)[FEATURES].transform("median")
+filled_by_country = int((data[FEATURES].isna() & country_median.notna()).sum().sum())
+data[FEATURES] = data[FEATURES].fillna(country_median).fillna(medians)
+print(f"Imputed {int(missing_before.sum())} missing cells: {filled_by_country} from the same "
+      f"country's median, {int(missing_before.sum()) - filled_by_country} from training-set medians")
 
+prepared_path = BASE_DIR / "datasets" / "who_prepared.csv"
+data[[GROUP] + FEATURES + [TARGET]].to_csv(prepared_path, index=False)
+print(f"Prepared data saved to {prepared_path.relative_to(BASE_DIR)}")
 
-def make_pipeline(num_cols, cat_cols):
-    return Pipeline([
-        ("prep", make_preprocessor(num_cols, cat_cols)),
-        ("model", LinearRegression()),
-    ])
+Xtr = data.loc[train_idx, FEATURES].reset_index(drop=True)
+ytr = data.loc[train_idx, TARGET].reset_index(drop=True)
+Xte = data.loc[test_idx, FEATURES].reset_index(drop=True)
+yte = data.loc[test_idx, TARGET].reset_index(drop=True)
+groups_tr = data.loc[train_idx, GROUP].reset_index(drop=True)
 
-
-# 3.6 Feature selection analysis (training data only, so the test set stays
-#     unseen). Five views of feature importance on the encoded features.
-encoder = make_preprocessor(NUMERIC, CATEGORICAL).fit(X_train)
-enc_names = [n.split("__", 1)[1] for n in encoder.get_feature_names_out()]
-Xtr_enc = pd.DataFrame(encoder.transform(X_train), columns=enc_names, index=X_train.index)
-
-fs = pd.DataFrame(index=enc_names)
-fs["pearson_r"] = Xtr_enc.apply(lambda c: np.corrcoef(c, y_train)[0, 1])
-fs["f_score"] = SelectKBest(f_regression, k="all").fit(Xtr_enc, y_train).scores_
-fs["rfe_rank"] = RFE(LinearRegression(), n_features_to_select=1).fit(Xtr_enc, y_train).ranking_
-lasso = LassoCV(cv=KFold(5, shuffle=True, random_state=RANDOM_STATE), max_iter=50000).fit(Xtr_enc, y_train)
-fs["lasso_coef"] = lasso.coef_
-rf = RandomForestRegressor(n_estimators=500, random_state=RANDOM_STATE).fit(Xtr_enc, y_train)
-fs["rf_importance_pct"] = rf.feature_importances_ * 100
-fs = fs.sort_values("f_score", ascending=False)
-print("\n--- 3.6 Feature selection analysis (training data) ---")
-print(fs.round(3).to_string())
+# Grouped CV folds on the training set (positions within Xtr)
+gkf = GroupKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
+folds = [np.sort(test) for _, test in gkf.split(Xtr, ytr, groups_tr)]
+cv_splits = [(np.setdiff1d(np.arange(len(ytr)), f), f) for f in folds]
 
 
 # =====================================================================
@@ -295,83 +285,77 @@ print(fs.round(3).to_string())
 # =====================================================================
 banner("PHASE 4: MODELING")
 
-# 4.1 Select modeling technique: Ordinary Least Squares multiple linear
-#     regression (sklearn LinearRegression).
-#     Modeling assumptions: linearity (checked by scatter plots in 2.3),
-#     low multicollinearity (VIF below), independent errors with constant
-#     variance and roughly normal distribution (residual plots in 5.1).
-def vif(frame):
-    """Variance inflation factor: VIF_j = 1 / (1 - R2_j), where R2_j comes from
-    regressing column j on the other columns."""
-    out = {}
-    for col in frame.columns:
-        others = frame.drop(columns=col)
-        r2 = LinearRegression().fit(others, frame[col]).score(others, frame[col])
-        out[col] = np.inf if r2 >= 1 else 1 / (1 - r2)
-    return pd.Series(out)
-
-vifs = vif(X_train[NUMERIC])
-print("--- 4.1 Multicollinearity check (VIF, training data) ---")
+# 4.1 Modeling technique: OLS multiple linear regression (+ Ridge / Lasso for
+#     comparison). Assumption check before modeling: multicollinearity (VIF).
+Xc = sm.add_constant(Xtr)
+vifs = pd.Series([variance_inflation_factor(Xc.values, i + 1) for i in range(len(FEATURES))],
+                 index=FEATURES).sort_values(ascending=False)
+print("--- 4.1 VIF (all candidate features, training data) ---")
 print(vifs.round(2))
-print("VIF > 10 would mean coefficients are unreliable:",
-      "none" if (vifs <= 10).all() else list(vifs[vifs > 10].index))
 
-# 4.2 Generate test design: 80/20 hold-out + 5-fold CV on training set.
-cv = KFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
+# 4.2 Test design: grouped hold-out (countries) + 5-fold GroupKFold CV on train.
+def cv_r2(model_factory, cols):
+    s = []
+    for tr, te in cv_splits:
+        m = model_factory().fit(Xtr.iloc[tr][cols], ytr.iloc[tr])
+        s.append(r2_score(ytr.iloc[te], m.predict(Xtr.iloc[te][cols])))
+    return float(np.mean(s)), float(np.std(s))
 
-# 4.3 Build models: full model + every feature subset (exhaustive
-#     selection is cheap with 4 candidate features).
-candidates = NUMERIC + CATEGORICAL
-results = []
-for k in range(1, len(candidates) + 1):
-    for subset in combinations(candidates, k):
-        num = [c for c in subset if c in NUMERIC]
-        cat = [c for c in subset if c in CATEGORICAL]
-        pipe = make_pipeline(num, cat)
-        scores = cross_val_score(pipe, X_train[list(subset)], y_train,
-                                 cv=cv, scoring="r2")
-        results.append({
-            "features": subset,
-            "n_features": len(subset),
-            "cv_r2_mean": scores.mean(),
-            "cv_r2_std": scores.std(),
-        })
+# 4.3 Build models: feature selection by several algorithms
+print("\n--- Feature progression (selection algorithms) ---")
+progressions, fs_comparison = fpa.run(Xtr, ytr, Xte, yte, folds, BASE_DIR)
 
-results_df = (pd.DataFrame(results)
-              .sort_values("cv_r2_mean", ascending=False)
-              .reset_index(drop=True))
-pd.set_option("display.max_colwidth", 80)
-print("--- Feature subsets ranked by 5-fold CV R2 (training data) ---")
-print(results_df.round(4).to_string())
+# 4.4 Assess: pool every (algorithm, k) result, then apply the 1-SD rule:
+#     the smallest k whose CV RMSE is within one fold-SD of the overall best.
+pool = pd.concat([df.assign(method=fpa.METHODS[k]) for k, df in progressions.items()], ignore_index=True)
+best = pool.loc[pool["CV RMSE (train)"].idxmin()]
+within = pool[pool["CV RMSE (train)"] <= best["CV RMSE (train)"] + best["CV RMSE SD"]]
+chosen = within.sort_values(["Number of Features", "CV RMSE (train)"]).iloc[0]
+SELECTED = chosen["Selected Features"].split(", ")
+print(f"\nBest CV: {best['method']} k={int(best['Number of Features'])} "
+      f"(CV RMSE {best['CV RMSE (train)']:.3f} +/- {best['CV RMSE SD']:.3f})")
+print(f"Selected (1-SD rule): {chosen['method']} k={len(SELECTED)} -> {SELECTED}")
 
-# 4.4 Assess model: choose best subset; prefer fewer features when CV R2
-#     is within one standard deviation of the best (parsimony rule).
-best = results_df.iloc[0]
-within_1sd = results_df[results_df["cv_r2_mean"] >= best["cv_r2_mean"] - best["cv_r2_std"]]
-chosen = within_1sd.sort_values(["n_features", "cv_r2_mean"],
-                                ascending=[True, False]).iloc[0]
-selected = list(chosen["features"])
-print(f"\nBest CV subset : {list(best['features'])} (R2={best['cv_r2_mean']:.4f})")
-print(f"Selected (1-SD parsimony rule): {selected} (R2={chosen['cv_r2_mean']:.4f})")
+# Model comparison on the held-out countries
+alphas = np.logspace(-3, 3, 60)
+model_specs = {
+    "OLS (all features)": (lambda: LinearRegression(), FEATURES),
+    f"OLS (selected {len(SELECTED)})": (lambda: LinearRegression(), SELECTED),
+    "Ridge (all, CV alpha)": (lambda: make_pipeline(StandardScaler(), RidgeCV(alphas=alphas, cv=cv_splits)), FEATURES),
+    "Lasso (all, CV alpha)": (lambda: make_pipeline(StandardScaler(), LassoCV(alphas=alphas, cv=cv_splits, max_iter=50000)), FEATURES),
+}
 
-sel_num = [c for c in selected if c in NUMERIC]
-sel_cat = [c for c in selected if c in CATEGORICAL]
 
-# Feature progression: 5 selection algorithms x 1..5 encoded features, each
-# chosen by CV RMSE on the training set (see feature_progression_analysis.py).
-print("\n--- Feature progression analysis (5 algorithms) ---")
-progressions, fs_comparison = fpa.run(out_dir=BASE_DIR, csv_path=csv_path)
+def metrics(y_true, pred):
+    return {"R2": r2_score(y_true, pred), "RMSE": float(np.sqrt(mean_squared_error(y_true, pred))),
+            "MAE": mean_absolute_error(y_true, pred), "MAPE_pct": float(np.mean(np.abs((y_true - pred) / y_true)) * 100)}
 
-full_model = make_pipeline(NUMERIC, CATEGORICAL).fit(X_train, y_train)
-final_model = make_pipeline(sel_num, sel_cat).fit(X_train[selected], y_train)
 
-# Coefficients of the full model (standardized numeric inputs, so
-# magnitudes are directly comparable)
-names = full_model.named_steps["prep"].get_feature_names_out()
-coefs = pd.Series(full_model.named_steps["model"].coef_, index=names)
-print("\n--- Full model coefficients (numeric features standardized) ---")
-print(coefs.sort_values(key=abs, ascending=False).round(1))
-print(f"Intercept: {full_model.named_steps['model'].intercept_:.1f}")
+models = []
+for name, (factory, cols) in model_specs.items():
+    m = factory().fit(Xtr[cols], ytr)
+    met = metrics(yte, m.predict(Xte[cols]))
+    cvm, cvs = cv_r2(lambda: LinearRegression(), cols) if name.startswith("OLS") else (np.nan, np.nan)
+    models.append({"name": name, "n_features": len(cols), **met, "cv_r2_mean": cvm, "cv_r2_std": cvs})
+models_df = pd.DataFrame(models)
+print("\n--- Model comparison (test = unseen countries) ---")
+print(models_df.round(4).to_string(index=False))
+
+# Final OLS with statsmodels for inference (classical and cluster-robust SE)
+ols = sm.OLS(ytr, sm.add_constant(Xtr[SELECTED])).fit()
+ols_cluster = sm.OLS(ytr, sm.add_constant(Xtr[SELECTED])).fit(cov_type="cluster", cov_kwds={"groups": groups_tr})
+ci = ols.conf_int(alpha=ALPHA)
+ci_cl = ols_cluster.conf_int(alpha=ALPHA)
+coef_table = pd.DataFrame({
+    "coef": ols.params, "se": ols.bse, "t": ols.tvalues, "p": ols.pvalues,
+    "ci_lo": ci[0], "ci_hi": ci[1], "se_cluster": ols_cluster.bse, "p_cluster": ols_cluster.pvalues,
+    "ci_lo_cluster": ci_cl[0], "ci_hi_cluster": ci_cl[1],
+})
+std_beta = ols.params.drop("const") * Xtr[SELECTED].std() / ytr.std()
+print("\n--- Final OLS (training data) ---")
+print(ols.summary())
+print("\n--- Cluster-robust (by country) inference ---")
+print(coef_table[["coef", "se_cluster", "p_cluster"]].round(4))
 
 
 # =====================================================================
@@ -379,105 +363,128 @@ print(f"Intercept: {full_model.named_steps['model'].intercept_:.1f}")
 # =====================================================================
 banner("PHASE 5: EVALUATION")
 
-# 5.1 Evaluate results: hold-out metrics, residual checks, success criteria
+# 5.1 Evaluate results
+X_te_c = sm.add_constant(Xte[SELECTED], has_constant="add")
+pred_frame = ols.get_prediction(X_te_c).summary_frame(alpha=ALPHA)
+y_pred = pred_frame["mean"].to_numpy()
+final_metrics = metrics(yte, y_pred)
+cv_final = cv_r2(lambda: LinearRegression(), SELECTED)
+baseline_rmse = float(np.sqrt(mean_squared_error(yte, np.full(len(yte), ytr.mean()))))
+pi_coverage = float(((yte >= pred_frame["obs_ci_lower"]) & (yte <= pred_frame["obs_ci_upper"])).mean())
+print("Test metrics (selected model):", {k: round(v, 4) for k, v in final_metrics.items()})
+print(f"Grouped CV R2: {cv_final[0]:.4f} +/- {cv_final[1]:.4f};  baseline RMSE {baseline_rmse:.3f}")
+print(f"95% prediction interval coverage on test: {pi_coverage * 100:.1f}%")
 
-def evaluate(model, X_te, y_te, n_features):
-    pred = model.predict(X_te)
-    n = len(y_te)
-    r2 = r2_score(y_te, pred)
-    p = n_features
-    adj_r2 = 1 - (1 - r2) * (n - 1) / (n - p - 1) if n - p - 1 > 0 else np.nan
-    return {
-        "R2": r2,
-        "Adj_R2": adj_r2,
-        "MAE": mean_absolute_error(y_te, pred),
-        "RMSE": np.sqrt(mean_squared_error(y_te, pred)),
-        "MAPE_pct": np.mean(np.abs((y_te - pred) / y_te)) * 100,
-    }, pred
+# Prediction plot with confidence and prediction intervals (test set)
+order = np.argsort(y_pred)
+xs = np.arange(len(order))
+fig, ax = plt.subplots(figsize=(13, 6))
+ax.fill_between(xs, pred_frame["obs_ci_lower"].to_numpy()[order], pred_frame["obs_ci_upper"].to_numpy()[order],
+                color="tab:green", alpha=0.18, label="95% prediction interval")
+ax.fill_between(xs, pred_frame["mean_ci_lower"].to_numpy()[order], pred_frame["mean_ci_upper"].to_numpy()[order],
+                color="tab:green", alpha=0.45, label="95% confidence interval (mean)")
+ax.plot(xs, y_pred[order], color="darkgreen", lw=1.5, label="Prediction")
+ax.scatter(xs, yte.to_numpy()[order], s=10, color="tab:orange", label="Actual", zorder=3)
+ax.set_title(f"Test set (unseen countries): predictions with 95% intervals "
+             f"- PI coverage {pi_coverage * 100:.1f}%")
+ax.set_xlabel("Test observations, sorted by predicted life expectancy")
+ax.set_ylabel("Life expectancy (years)")
+ax.legend(loc="upper left")
+savefig("07_prediction_intervals_test.png")
 
+# Simple linear regression on the strongest single feature, with bands
+SIMPLE_X = progressions["forward_sfs"].iloc[0]["Selected Features"]
+simple = sm.OLS(ytr, sm.add_constant(Xtr[[SIMPLE_X]])).fit()
+grid = np.linspace(min(Xtr[SIMPLE_X].min(), Xte[SIMPLE_X].min()), max(Xtr[SIMPLE_X].max(), Xte[SIMPLE_X].max()), 80)
+grid_frame = simple.get_prediction(sm.add_constant(pd.DataFrame({SIMPLE_X: grid}), has_constant="add")).summary_frame(alpha=ALPHA)
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.scatter(Xtr[SIMPLE_X], ytr, s=6, alpha=0.35, label="Train")
+ax.scatter(Xte[SIMPLE_X], yte, s=8, alpha=0.6, color="tab:orange", label="Test")
+ax.fill_between(grid, grid_frame["obs_ci_lower"], grid_frame["obs_ci_upper"], color="tab:green", alpha=0.15, label="95% prediction interval")
+ax.fill_between(grid, grid_frame["mean_ci_lower"], grid_frame["mean_ci_upper"], color="tab:green", alpha=0.45, label="95% confidence interval")
+ax.plot(grid, grid_frame["mean"], color="darkgreen", lw=2, label=f"Fit (R2={simple.rsquared:.3f})")
+ax.set_xlabel(SIMPLE_X)
+ax.set_ylabel("Life expectancy (years)")
+ax.set_title(f"Simple linear regression: Life expectancy ~ {SIMPLE_X}")
+ax.legend()
+savefig("08_simple_regression_intervals.png")
 
-n_full = len(full_model.named_steps["prep"].get_feature_names_out())
-n_final = len(final_model.named_steps["prep"].get_feature_names_out())
-full_metrics, _ = evaluate(full_model, X_test, y_test, n_full)
-final_metrics, y_pred = evaluate(final_model, X_test[selected], y_test, n_final)
-
-baseline_pred = np.full(len(y_test), y_train.mean())
-baseline_rmse = np.sqrt(mean_squared_error(y_test, baseline_pred))
-
-comparison = pd.DataFrame({"Full model": full_metrics,
-                           "Selected model": final_metrics}).T
-print("--- Hold-out test metrics ---")
-print(comparison.round(4))
-print(f"Baseline (predict train mean) RMSE: {baseline_rmse:,.0f}")
-
-cv_final = cross_val_score(make_pipeline(sel_num, sel_cat), X[selected], y,
-                           cv=cv, scoring="r2")
-print(f"5-fold CV R2 on full data (selected model): "
-      f"{cv_final.mean():.4f} +/- {cv_final.std():.4f}")
-
-# Residual diagnostics (linear-regression assumptions)
-residuals = y_test - y_pred
-fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-axes[0].scatter(y_test, y_pred)
-lims = [min(y_test.min(), y_pred.min()), max(y_test.max(), y_pred.max())]
+# Residual diagnostics
+resid_tr = ols.resid
+fig, axes = plt.subplots(1, 4, figsize=(20, 4.5))
+axes[0].scatter(yte, y_pred, s=8)
+lims = [min(yte.min(), y_pred.min()), max(yte.max(), y_pred.max())]
 axes[0].plot(lims, lims, "r--")
-axes[0].set_xlabel("Actual Profit")
-axes[0].set_ylabel("Predicted Profit")
-axes[0].set_title("Actual vs Predicted")
-axes[1].scatter(y_pred, residuals)
-axes[1].axhline(0, color="r", linestyle="--")
-axes[1].set_xlabel("Predicted Profit")
-axes[1].set_ylabel("Residual")
-axes[1].set_title("Residuals vs Fitted (homoscedasticity)")
-axes[2].hist(residuals, bins=8, edgecolor="black")
-axes[2].set_title("Residual distribution (normality)")
-plt.tight_layout()
-plt.savefig(OUT_DIR / "04_residual_diagnostics.png", dpi=120)
-plt.close()
+axes[0].set_title("Actual vs Predicted (test)")
+axes[1].scatter(ols.fittedvalues, resid_tr, s=6, alpha=0.5)
+axes[1].axhline(0, color="r", ls="--")
+axes[1].set_title("Residuals vs Fitted (train)")
+axes[2].hist(resid_tr, bins=40, edgecolor="black")
+axes[2].set_title("Residual distribution")
+stats.probplot(resid_tr, dist="norm", plot=axes[3])
+axes[3].set_title("Normal Q-Q")
+savefig("06_residual_diagnostics.png")
 
-# Review against business success criteria
+# Assumption checks (train, final model). Rows are ordered by country then year
+# for Durbin-Watson, so it measures within-country autocorrelation.
+order_cy = data.loc[train_idx].reset_index(drop=True).sort_values([GROUP, "Year"]).index
+reset = linear_reset(ols, power=3, use_f=True)
+bp = het_breuschpagan(ols.resid, ols.model.exog)
+jb = jarque_bera(ols.resid)
+dw = durbin_watson(ols.resid.iloc[order_cy])
+sel_vif = pd.Series([variance_inflation_factor(sm.add_constant(Xtr[SELECTED]).values, i + 1)
+                     for i in range(len(SELECTED))], index=SELECTED)
+cooks = ols.get_influence().cooks_distance[0]
+assumptions = [
+    {"name": "Linearity (Ramsey RESET)", "stat": float(reset.fvalue), "p": float(reset.pvalue), "pass": bool(reset.pvalue >= ALPHA)},
+    {"name": "Homoscedasticity (Breusch-Pagan)", "stat": float(bp[0]), "p": float(bp[1]), "pass": bool(bp[1] >= ALPHA)},
+    {"name": "Normality of residuals (Jarque-Bera)", "stat": float(jb[0]), "p": float(jb[1]), "pass": bool(jb[1] >= ALPHA)},
+    {"name": "Independence (Durbin-Watson, by country/year)", "stat": float(dw), "p": None, "pass": bool(1.5 <= dw <= 2.5)},
+    {"name": "No multicollinearity (max VIF)", "stat": float(sel_vif.max()), "p": None, "pass": bool(sel_vif.max() <= 10)},
+    {"name": "Influential points (Cook's D > 4/n)", "stat": int((cooks > 4 / len(cooks)).sum()), "p": None, "pass": None},
+]
+print("\n--- Assumption checks ---")
+for a in assumptions:
+    print(f"{a['name']:48s} stat={a['stat']:.3f}" + (f"  p={a['p']:.4f}" if a["p"] is not None else "") + f"  pass={a['pass']}")
+
 crit = business["success_criteria"]
 checks = {
     f"Test R2 >= {crit['test_R2_min']}": final_metrics["R2"] >= crit["test_R2_min"],
-    f"CV R2 >= {crit['cv_R2_min']}": cv_final.mean() >= crit["cv_R2_min"],
-    f"MAPE <= {crit['MAPE_max_pct']}%": final_metrics["MAPE_pct"] <= crit["MAPE_max_pct"],
+    f"Test RMSE <= {crit['test_RMSE_max']} years": final_metrics["RMSE"] <= crit["test_RMSE_max"],
+    f"Grouped CV R2 >= {crit['cv_R2_min']}": cv_final[0] >= crit["cv_R2_min"],
 }
-print("\n--- Success criteria review ---")
+print("\n--- Success criteria ---")
 for k, ok in checks.items():
     print(f"[{'PASS' if ok else 'FAIL'}] {k}")
-approved = all(checks.values())
-print("\nDecision:", "APPROVE for deployment" if approved
-      else "REVISIT earlier phases before deployment")
 
-print("\n--- Answers to business questions ---")
-top = coefs[[c for c in coefs.index if c.startswith("num__")]].abs().idxmax()
-print(f"1. Strongest spending driver: {top.replace('num__', '')}")
-print(f"2. State in selected model: {'yes' if 'State' in selected else 'no'} "
-      f"-> State {'adds' if 'State' in selected else 'does not add'} "
-      f"meaningful predictive power")
-print(f"3. Typical prediction error (MAE): ${final_metrics['MAE']:,.0f}")
-
-# 5.2 Review process: was anything overlooked or done out of order?
+# 5.2 Review process
 process_review = {
-    "Test set touched only after model selection": True,
-    "Scaler/encoder fitted inside pipeline (no leakage)": True,
-    "Multicollinearity acceptable (all VIF <= 10)": bool((vifs <= 10).all()),
-    "Model beats naive baseline RMSE": bool(final_metrics["RMSE"] < baseline_rmse),
+    "Split by country (no country in both train and test)": not set(train_countries) & set(test_countries),
+    "Fallback imputation medians computed on training rows only": True,
+    "Feature selection used grouped CV on training data only": True,
+    "Selected model beats the mean-only baseline": final_metrics["RMSE"] < baseline_rmse,
 }
 print("\n--- 5.2 Process review ---")
 for k, ok in process_review.items():
     print(f"[{'OK' if ok else 'ISSUE'}] {k}")
-approved = approved and all(process_review.values())
+approved = all(checks.values()) and all(process_review.values())
 
-# 5.3 Determine next steps
-if approved:
-    next_steps = "Proceed to Phase 6 (deployment)."
-else:
-    failed = [k for k, ok in {**checks, **process_review}.items() if not ok]
-    next_steps = ("Do not deploy. Return to Phase 3/4 (e.g. log-transform, "
-                  f"interaction terms, more data). Failed: {failed}")
+# 5.3 Next steps
+failed_assumptions = [a["name"] for a in assumptions if a["pass"] is False]
+next_steps = ("Proceed to Phase 6 (deployment)." if approved else
+              "Do not deploy; revisit Phase 3/4 (more features, interactions, non-linear terms).")
+if failed_assumptions:
+    next_steps += (" Note: " + "; ".join(failed_assumptions) + " not satisfied - report "
+                   "cluster-robust standard errors and treat p-values with care.")
 print("\n--- 5.3 Next steps ---")
 print(next_steps)
+
+top = std_beta.abs().sort_values(ascending=False)
+print("\n--- Answers to business questions ---")
+print("1. Strongest indicators (|standardised beta|):", top.head(3).round(3).to_dict())
+print(f"2. Error on unseen countries: RMSE {final_metrics['RMSE']:.2f} years, R2 {final_metrics['R2']:.3f}")
+print(f"3. Typical 95% prediction interval width: "
+      f"{(pred_frame['obs_ci_upper'] - pred_frame['obs_ci_lower']).median():.1f} years")
 
 
 # =====================================================================
@@ -485,154 +492,144 @@ print(next_steps)
 # =====================================================================
 banner("PHASE 6: DEPLOYMENT")
 
-# 6.1 Plan deployment: retrain the selected pipeline on ALL data and save it.
-#     CRISP-DM only deploys a model that passed Phase 5.
-model_path = OUT_DIR / "startup_profit_model.joblib"
-if approved:
-    production_model = make_pipeline(sel_num, sel_cat).fit(X[selected], y)
-    joblib.dump({"pipeline": production_model, "features": selected}, model_path)
-    print(f"Model saved to {model_path}")
-else:
-    print("Evaluation did not approve the model -> nothing deployed.")
+all_rows = np.concatenate([train_idx, test_idx])
+deploy_X = sm.add_constant(data.loc[all_rows, SELECTED])
+deploy = sm.OLS(data.loc[all_rows, TARGET], deploy_X).fit() if approved else None
+model_path = OUT_DIR / "life_expectancy_model.joblib"
+if deploy is not None:
+    bundle = {"features": SELECTED, "log_cols": LOG_COLS, "medians": medians.to_dict(),
+              "params": deploy.params.to_dict(), "cov": deploy.cov_params().values.tolist(),
+              "scale": float(deploy.scale), "df_resid": float(deploy.df_resid)}
+    joblib.dump(bundle, model_path)
+    print(f"Model saved to {model_path.relative_to(BASE_DIR)}")
 
 
-def predict_profit(records, path=model_path):
-    """Score new startups. `records` is a list of dicts or a DataFrame."""
-    bundle = joblib.load(path)
-    new = pd.DataFrame(records)
-    return bundle["pipeline"].predict(new[bundle["features"]])
+def predict_life_expectancy(records, path=model_path, alpha=ALPHA):
+    """Score raw WHO-style records (dicts with the original column names).
+    Applies the same cleaning, log transforms and median imputation, then
+    returns prediction with confidence and prediction intervals."""
+    b = joblib.load(path)
+    df = pd.DataFrame(records)
+    df.columns = [" ".join(c.split()) for c in df.columns]
+    for col in ["Schooling", "Income composition of resources", "percentage expenditure"]:
+        if col in df:
+            df.loc[df[col] == 0, col] = np.nan
+    for c, new in b["log_cols"].items():
+        if c in df:
+            df[new] = np.log1p(df[c])
+    if "Status" in df:
+        df["Status_Developing"] = (df["Status"] == "Developing").astype(float)
+    X = df.reindex(columns=b["features"]).astype(float).fillna(pd.Series(b["medians"]))
+    Xc = np.column_stack([np.ones(len(X)), X.to_numpy()])
+    beta = np.array([b["params"]["const"]] + [b["params"][f] for f in b["features"]])
+    cov = np.array(b["cov"])
+    yhat = Xc @ beta
+    se_mean = np.sqrt(np.einsum("ij,jk,ik->i", Xc, cov, Xc))
+    t = stats.t.ppf(1 - alpha / 2, b["df_resid"])
+    se_obs = np.sqrt(se_mean ** 2 + b["scale"])
+    return pd.DataFrame({"prediction": yhat, "ci_lower": yhat - t * se_mean, "ci_upper": yhat + t * se_mean,
+                         "pi_lower": yhat - t * se_obs, "pi_upper": yhat + t * se_obs})
 
 
-example = [
-    {"R&D Spend": 160000, "Administration": 130000,
-     "Marketing Spend": 300000, "State": "New York"},
-    {"R&D Spend": 50000, "Administration": 120000,
-     "Marketing Spend": 150000, "State": "Florida"},
+examples = []
+if deploy is not None:
+    sample_rows = raw[raw[GROUP].isin(test_countries) & (raw["Year"] == 2014)].dropna(subset=[TARGET]).head(3)
+    preds = predict_life_expectancy(sample_rows.to_dict(orient="records"))
+    for (_, r), (_, p) in zip(sample_rows.iterrows(), preds.iterrows()):
+        examples.append({"country": r[GROUP], "year": int(r["Year"]), "actual": float(r[TARGET]),
+                         **{k: round(float(v), 2) for k, v in p.items()}})
+        print(f"{r[GROUP]} {int(r['Year'])}: actual {r[TARGET]:.1f}, predicted {p['prediction']:.1f} "
+              f"(95% PI {p['pi_lower']:.1f}-{p['pi_upper']:.1f})")
+
+monitoring_plan = [
+    "Re-score when WHO publishes a new year of indicators; compare with reported life expectancy.",
+    "Retrain yearly, or when the rolling RMSE on new years exceeds 5 years.",
+    "Alert when inputs fall outside the training range (data drift).",
+    "Check that prediction-interval coverage stays near 95%.",
 ]
-example_preds = []
-if approved:
-    for rec, p in zip(example, predict_profit(example)):
-        print(f"Predicted profit for {rec}: ${p:,.0f}")
-        example_preds.append({**rec, "Predicted Profit": round(float(p), 2)})
-
-# 6.2 Plan monitoring & maintenance
-# 6.3 Produce final report
-report = {
-    "business_objective": business["objective"],
-    "situation": situation,
-    "vif": {k: round(float(v), 2) for k, v in vifs.items()},
-    "feature_selection": fs.round(4).to_dict(orient="index"),
-    "feature_selection_comparison": fs_comparison.round(4).to_dict(orient="records"),
-    "selected_features": selected,
-    "test_metrics_selected": {k: round(float(v), 4) for k, v in final_metrics.items()},
-    "test_metrics_full": {k: round(float(v), 4) for k, v in full_metrics.items()},
-    "cv_r2_mean": round(float(cv_final.mean()), 4),
-    "cv_r2_std": round(float(cv_final.std()), 4),
-    "success_criteria_passed": {k: bool(v) for k, v in checks.items()},
-    "process_review": process_review,
-    "approved": bool(approved),
-    "next_steps": next_steps,
-    "monitoring_plan": [
-        "Log every prediction with its inputs; compare to actual profit when reported.",
-        "Retrain quarterly or when rolling MAPE exceeds 15%.",
-        "Alert if new inputs fall outside training ranges (data drift).",
-        "Alert on unseen State values (encoder ignores them -> baseline state).",
-    ],
-}
-report_path = OUT_DIR / "final_report.json"
-report_path.write_text(json.dumps(report, indent=2))
-print(f"Final report saved to {report_path}")
-
-# 6.4 Review project
-print("\nProject review: with only 50 samples, results have high variance; "
-      "collect more data before high-stakes use.")
 
 
-# 6.3 (web) Export everything the report page needs. index.html loads
-#     model_data.js (works from file:// and static hosting such as Vercel);
-#     model_data.json is the same data for other tools.
+# --------------------------------------------------------------- export
 def r(x, nd=4):
-    return round(float(x), nd)
+    return None if x is None or (isinstance(x, float) and np.isnan(x)) else round(float(x), nd)
 
-hist_counts, hist_edges = np.histogram(df[TARGET], bins=8)
-state_stats = df.groupby("State")[TARGET].agg(["mean", "std", "count"])
-deployed = None
-if approved:
-    m = production_model.named_steps["model"]
-    deployed = {
-        "features": selected,
-        "terms": dict(zip(production_model.named_steps["prep"].get_feature_names_out().tolist(),
-                          [r(c, 2) for c in m.coef_])),
-        "intercept": r(m.intercept_, 2),
-    }
-    # Raw-unit line for a single numeric feature (Profit = a + b * x)
-    if sel_num and not sel_cat and len(sel_num) == 1:
-        sc = production_model.named_steps["prep"].named_transformers_["num"]
-        slope = m.coef_[0] / sc.scale_[0]
-        deployed["line"] = {"x": sel_num[0], "slope": r(slope, 4),
-                            "intercept": r(m.intercept_ - slope * sc.mean_[0], 2)}
 
+hist_counts, hist_edges = np.histogram(raw[TARGET].dropna(), bins=30)
+train_set = set(train_idx.tolist())
+corr_prepared = data.loc[train_idx, FEATURES + [TARGET]].corr()
 model_data = {
     "generated": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
-    "settings": {"random_state": RANDOM_STATE, "test_size": TEST_SIZE,
-                 "n_train": len(X_train), "n_test": len(X_test)},
-    "business": business,
-    "situation": situation,
-    "project_plan": project_plan,
+    "dataset": {"name": "Life Expectancy (WHO)", "kaggle_url": KAGGLE_URL, "file": "datasets/LifeExpectancy_WHO.csv",
+                "rows": int(raw.shape[0]), "cols": int(raw.shape[1]), "countries": int(raw[GROUP].nunique()),
+                "years": [int(raw["Year"].min()), int(raw["Year"].max())], "target": TARGET,
+                "features_raw": FEATURES_RAW, "features": FEATURES, "status_counts": raw["Status"].value_counts().to_dict()},
+    "business": business, "situation": situation, "project_plan": project_plan,
     "data": {
-        "source_url": DATA_URL,
-        "sha256_prefix": DATA_SHA256,
-        "shape": list(df.shape),
-        "columns": df.columns.tolist(),
-        "missing": int(df.isna().sum().sum()),
-        "duplicates": int(df.duplicated().sum()),
-        "zeros": {k: int(v) for k, v in zero_counts.items()},
-        "state_counts": df["State"].value_counts().to_dict(),
-        "outliers": outliers.reset_index().to_dict(orient="records"),
-        "corr": {"names": corr.columns.tolist(), "matrix": corr.round(3).values.tolist()},
-        "hist": {"counts": hist_counts.tolist(), "edges": [r(e, 0) for e in hist_edges]},
-        "scatter": df[[NUMERIC[0], TARGET]].round(0).values.tolist(),
-        "state_profit": [{"state": s_, "mean": r(v["mean"], 0), "std": r(v["std"], 0),
-                          "count": int(v["count"])} for s_, v in state_stats.iterrows()],
+        "missing": {k: int(v) for k, v in missing.items()},
+        "rows_with_missing": int(raw.isna().any(axis=1).sum()),
+        "quality": quality,
+        "corr_target": {k: r(v, 3) for k, v in corr_target.items()},
+        "target_hist": {"counts": hist_counts.tolist(), "edges": [r(e, 2) for e in hist_edges]},
+        "target_stats": {k: r(v, 2) for k, v in raw[TARGET].describe().items()},
+        "skew_before": {k: r(v, 2) for k, v in skew_before.items()},
+        "skew_after": {k: r(v, 2) for k, v in skew_after.items()},
+        "corr_prepared": {"names": corr_prepared.columns.tolist(), "matrix": corr_prepared.round(3).values.tolist()},
     },
-    # Raw rows + the exact split / CV folds, so app.html can refit any
-    # feature subset in the browser on the same rows as this script.
-    "raw": data.reset_index(names="row").to_dict(orient="records"),
-    "train_index": X_train.index.tolist(),
-    "test_index": X_test.index.tolist(),
-    "cv_folds": [X_train.index[test].tolist() for _, test in cv.split(X_train)],
-    "vif": {k: r(v, 2) for k, v in vifs.items()},
-    "feature_selection": [{"feature": k, **{c: r(v) for c, v in row.items()}}
-                          for k, row in fs.iterrows()],
-    "subset_search": [{"features": list(row["features"]), "cv_r2_mean": r(row["cv_r2_mean"]),
-                       "cv_r2_std": r(row["cv_r2_std"])} for _, row in results_df.iterrows()],
-    "best_subset": list(best["features"]),
-    "selected_features": selected,
-    "progressions": {key: {"title": fpa.METHODS[key],
-                           "rows": [{"k": int(row["Number of Features"]),
-                                     "features": row["Selected Features"].split(", "),
-                                     "cv_rmse": r(row["CV RMSE (train)"], 2),
-                                     "test_rmse": r(row["Test RMSE"], 2),
-                                     "test_r2": r(row["Test R-squared"])}
-                                    for _, row in dfp.iterrows()]}
-                     for key, dfp in progressions.items()},
-    "feature_selection_comparison": fs_comparison.round(4).to_dict(orient="records"),
-    "metrics": {"selected": {k: r(v) for k, v in final_metrics.items()},
-                "full": {k: r(v) for k, v in full_metrics.items()},
-                "baseline_rmse": r(baseline_rmse, 2),
-                "cv_r2_mean": r(cv_final.mean()), "cv_r2_std": r(cv_final.std())},
-    "actual_vs_pred": [[r(a, 0), r(b, 0)] for a, b in zip(y_test, y_pred)],
+    "prep": {"dropped_rows_target": int(len(raw) - len(data)), "dropped_columns": {"BMI": quality[0]["issue"]},
+             "zero_to_missing": ["Schooling", "Income composition of resources", "percentage expenditure"],
+             "log_cols": LOG_COLS, "imputed_cells": int(missing_before.sum()), "imputed_by_country": filled_by_country,
+             "medians": {k: r(v, 4) for k, v in medians.items()},
+             "train_rows": int(len(train_idx)), "test_rows": int(len(test_idx)),
+             "train_countries": len(train_countries), "test_countries": len(test_countries),
+             "test_country_list": test_countries},
+    # positions in datasets/who_prepared.csv; folds are positions within the training list
+    "split": {"train": train_idx.tolist(), "test": test_idx.tolist(), "cv_folds": [f.tolist() for f in folds]},
+    "vif_all": {k: r(v, 2) for k, v in vifs.items()},
+    "progressions": {k: {"title": fpa.METHODS[k], "rows": [
+        {"k": int(row["Number of Features"]), "features": row["Selected Features"].split(", "),
+         "cv_rmse": r(row["CV RMSE (train)"]), "cv_sd": r(row["CV RMSE SD"]),
+         "test_rmse": r(row["Test RMSE"]), "test_r2": r(row["Test R-squared"])} for _, row in df.iterrows()]}
+        for k, df in progressions.items()},
+    "exhaustive_skipped": "exhaustive_search" not in progressions,
+    "feature_selection_comparison": json.loads(fs_comparison.to_json(orient="records")),
+    "final": {"method": chosen["method"], "k": len(SELECTED), "features": SELECTED,
+              "cv_rmse": r(chosen["CV RMSE (train)"]), "best_method": best["method"],
+              "best_k": int(best["Number of Features"]), "best_cv_rmse": r(best["CV RMSE (train)"]),
+              "best_cv_sd": r(best["CV RMSE SD"])},
+    "models": json.loads(models_df.to_json(orient="records")),
+    "coef_table": [{"name": n, **{c: r(v, 6) for c, v in row.items()}} for n, row in coef_table.iterrows()],
+    "std_beta": {k: r(v) for k, v in std_beta.items()},
+    "vif_selected": {k: r(v, 2) for k, v in sel_vif.items()},
+    "ols": {"r2": r(ols.rsquared), "adj_r2": r(ols.rsquared_adj), "F": r(ols.fvalue, 2), "F_p": float(ols.f_pvalue),
+            "n": int(ols.nobs), "df_resid": int(ols.df_resid)},
+    "metrics": {**{k: r(v) for k, v in final_metrics.items()}, "baseline_rmse": r(baseline_rmse),
+                "cv_r2_mean": r(cv_final[0]), "cv_r2_std": r(cv_final[1]), "pi_coverage": r(pi_coverage)},
+    "interval_plot": [{"country": data.loc[test_idx[i], GROUP], "year": int(data.loc[test_idx[i], "Year"]),
+                       "actual": r(yte[i], 2), "pred": r(pred_frame["mean"].iloc[i], 2),
+                       "ci_lo": r(pred_frame["mean_ci_lower"].iloc[i], 2), "ci_hi": r(pred_frame["mean_ci_upper"].iloc[i], 2),
+                       "pi_lo": r(pred_frame["obs_ci_lower"].iloc[i], 2), "pi_hi": r(pred_frame["obs_ci_upper"].iloc[i], 2)}
+                      for i in range(len(test_idx))],
+    "simple_lr": {"feature": SIMPLE_X, "intercept": r(simple.params["const"]), "slope": r(simple.params[SIMPLE_X]),
+                  "r2": r(simple.rsquared), "grid": [{"x": r(x, 4), "pred": r(f["mean"], 3), "ci_lo": r(f["mean_ci_lower"], 3),
+                  "ci_hi": r(f["mean_ci_upper"], 3), "pi_lo": r(f["obs_ci_lower"], 3), "pi_hi": r(f["obs_ci_upper"], 3)}
+                  for x, (_, f) in zip(grid, grid_frame.iterrows())],
+                  "train_points": [[r(a, 3), r(b, 2)] for a, b in zip(Xtr[SIMPLE_X], ytr)],
+                  "test_points": [[r(a, 3), r(b, 2)] for a, b in zip(Xte[SIMPLE_X], yte)]},
+    "assumptions": assumptions,
     "success_criteria": [{"name": k, "passed": bool(v)} for k, v in checks.items()],
     "process_review": [{"name": k, "ok": bool(v)} for k, v in process_review.items()],
-    "approved": bool(approved),
-    "next_steps": next_steps,
-    "deployed": deployed,
-    "example_predictions": example_preds,
-    "monitoring_plan": report["monitoring_plan"],
+    "approved": bool(approved), "next_steps": next_steps,
+    "deployed": None if deploy is None else {"features": SELECTED, "params": {k: r(v, 6) for k, v in deploy.params.items()}},
+    "example_predictions": examples, "monitoring_plan": monitoring_plan,
 }
-payload = json.dumps(model_data, indent=2, ensure_ascii=False)
+payload = json.dumps(model_data, indent=1, ensure_ascii=False, allow_nan=False)
 (BASE_DIR / "model_data.json").write_text(payload, encoding="utf-8")
-(BASE_DIR / "model_data.js").write_text(
-    "// Generated by main.py - do not edit by hand.\nwindow.MODEL_DATA = " + payload + ";\n",
-    encoding="utf-8")
-print("Web report data saved to model_data.json / model_data.js")
+(BASE_DIR / "model_data.js").write_text("// Generated by main.py - do not edit by hand.\nwindow.MODEL_DATA = " + payload + ";\n", encoding="utf-8")
+(OUT_DIR / "final_report.json").write_text(json.dumps({k: model_data[k] for k in (
+    "dataset", "business", "final", "models", "metrics", "assumptions", "success_criteria",
+    "process_review", "approved", "next_steps", "monitoring_plan")}, indent=2, ensure_ascii=False), encoding="utf-8")
+print("Saved model_data.json / model_data.js and crispdm_output/final_report.json")
+
+# 6.4 Review project
+print("\nProject review: associations are not causal; country-level panel data means "
+      "observations within a country are correlated, so cluster-robust inference is reported.")

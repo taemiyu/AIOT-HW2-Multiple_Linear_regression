@@ -1,6 +1,5 @@
-Method,Best Number of Features,Selected Features,CV RMSE (train),Test RMSE,Test R-squared
-Lasso (L1 Ranking),3,"R&D Spend, Marketing Spend, Administration",9104.68119706925,8995.905803361416,0.900065308303732
-Forward SFS,3,"R&D Spend, Administration, Marketing Spend",9104.681197069249,8995.905803361415,0.9000653083037321
-RFE,3,"R&D Spend, Marketing Spend, Administration",9104.68119706925,8995.905803361416,0.900065308303732
-ElasticNet Ranking,2,"R&D Spend, Marketing Spend",9186.680413894432,8206.328813165856,0.9168381183550247
-Exhaustive Search,3,"R&D Spend, Administration, Marketing Spend",9104.681197069249,8995.905803361415,0.9000653083037321
+Method,k (CV best),k (1-SD),Selected Features (1-SD),CV RMSE (train),Test RMSE,Test R-squared
+Lasso (L1 Ranking),10,4,"Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths",3.668537332093716,3.708061402857075,0.852837492384323
+Forward SFS,11,4,"Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria",3.661922641410237,3.747605176839939,0.8496819941726395
+RFE,11,5,"log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality",3.644402135510854,3.8007643962969477,0.8453872717852622
+ElasticNet Ranking,15,4,"Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality",3.7592072499214604,3.8404864151274327,0.8421386502937672

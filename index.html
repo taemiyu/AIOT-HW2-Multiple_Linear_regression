@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>50 Startups CRISP-DM Log</title>
-<meta name="description" content="50 Startups 多元線性迴歸：CRISP-DM 六階段專案紀錄">
+<title>WHO Life Expectancy Report</title>
+<meta name="description" content="AIoT HW2：以 Kaggle WHO Life Expectancy 資料集進行多元線性迴歸，依 CRISP-DM 六階段完成特徵選擇、評估與預測區間">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -94,7 +94,8 @@ body { overflow-x: clip; }
 .body { padding-bottom: 40px; min-width: 0; display: grid; gap: 16px; align-content: start; }
 .body > header { margin: 0; gap: 4px; padding-top: 4px; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; box-shadow: var(--shadow); }
-.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 820px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
 .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 16px; }
 ul.clean { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 ul.clean li { padding-left: 18px; position: relative; overflow-wrap: anywhere; min-width: 0; }
@@ -127,7 +128,7 @@ th { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.05em; tex
 td.n, th.n { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 tr.best td { background: var(--money-soft); }
 .chip { display: inline-block; font-family: var(--f-mono); font-size: 0.72rem; padding: 1px 7px; border-radius: 99px; background: var(--ink-soft); color: var(--ink); margin: 1px 2px 1px 0; white-space: nowrap; }
-.pill { display: inline-block; font-family: var(--f-mono); font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+.pill { display: inline-block; font-family: var(--f-mono); font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
 .pill.pass { background: var(--money-soft); color: var(--money); }
 .pill.warn { background: var(--warn-soft); color: var(--warn); }
 
@@ -166,6 +167,17 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
 .tabs button[aria-selected="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .tabs button:hover { border-color: var(--ink); }
 .missing { padding: 24px; border: 1px dashed var(--warn); border-radius: 10px; color: var(--warn); }
+#tip { position: fixed; z-index: 60; pointer-events: none; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 0.8rem; box-shadow: 0 10px 30px rgba(46, 58, 49, .15); min-width: 150px; max-width: 300px; }
+#tip .t-title { font-size: 0.74rem; color: var(--muted); margin-bottom: 4px; }
+#tip .t-row { display: flex; gap: 8px; }
+#tip .t-row b { font-family: var(--f-mono); }
+#tip .t-row span { color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.8rem; margin-bottom: 8px; }
+.ai-box { border-left: 4px solid var(--accent); }
+.todo { background: var(--warn-soft); color: var(--warn); padding: 1px 6px; border-radius: 4px; }
+.tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 640px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 </style>
 
 </head>
@@ -174,29 +186,31 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
   <div class="header-inner">
     <div>
       <nav class="breadcrumbs" aria-label="麵包屑"><b>首頁</b><span aria-hidden="true">›</span><a href="app.html">迴歸分析</a></nav>
-      <h1><svg class="cat-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 11V3.5l4.6 3.6a9 9 0 0 1 6.8 0L20 3.5V11c.8 1.2 1.2 2.5 1.2 3.8 0 3.8-4.1 6.4-9.2 6.4s-9.2-2.6-9.2-6.4C2.8 13.5 3.2 12.2 4 11Z"/></svg>50 Startups 專案報告 <span class="brand-badge">CRISP-DM</span></h1>
+      <h1><svg class="cat-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 11V3.5l4.6 3.6a9 9 0 0 1 6.8 0L20 3.5V11c.8 1.2 1.2 2.5 1.2 3.8 0 3.8-4.1 6.4-9.2 6.4s-9.2-2.6-9.2-6.4C2.8 13.5 3.2 12.2 4 11Z"/></svg>HW2：WHO 平均壽命多元迴歸 <span class="brand-badge">CRISP-DM</span></h1>
     </div>
     <div class="header-actions">
       <a class="ref-btn primary" href="app.html">開啟多元迴歸探索器 →</a>
-      <a class="ref-btn" href="https://statsunlock.com/multiple-linear-regression-calculator/" target="_blank" rel="noopener">Style Ref: StatsUnlock ↗</a>
+      <a class="ref-btn" href="https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who" target="_blank" rel="noopener">Kaggle 資料集 ↗</a>
     </div>
   </div>
 </header>
+<div id="tip" hidden></div>
 <div class="wrap">
   <section class="hero" aria-labelledby="heroTitle">
-    <span class="eyebrow" id="eyebrow">AIoT · Multiple Linear Regression</span>
-    <h2 id="heroTitle">50 Startups：CRISP-DM 機器學習專案紀錄</h2>
-    <p><b>目標：</b>依 CRISP-DM 六階段，用 scikit-learn 建立多元線性迴歸模型，從研發、行政、行銷支出與所在州別預測新創公司的年度利潤（Profit）。想換資料集、切換演算法或上傳自己的 CSV，請用<a href="app.html" style="color:var(--ink-2);font-weight:700">多元迴歸探索器</a>。</p>
+    <span class="eyebrow" id="eyebrow">AIoT HW2 · Multiple Linear Regression · CRISP-DM</span>
+    <h2 id="heroTitle">WHO 平均壽命預測：多元線性迴歸專案報告</h2>
+    <p><b>目標：</b>以 Kaggle「Life Expectancy (WHO)」資料集（193 國、2000–2015 年、20 個候選特徵），依 CRISP-DM 六階段建立多元線性迴歸模型，找出影響平均壽命的關鍵指標，並在「模型沒看過的國家」上評估預測能力與不確定性。想自己換特徵、換演算法或上傳其他 CSV，請用<a href="app.html" style="color:var(--ink-2);font-weight:700">多元迴歸探索器</a>。</p>
   </section>
 
-  <div id="missing" class="missing" hidden>找不到 <span class="mono">model_data.js</span>。請先執行 <span class="mono">python main.py</span> 產生資料，再重新整理這個頁面。</div>
+  <div id="missingData" class="missing" hidden>找不到 <span class="mono">model_data.js</span>。請先執行 <span class="mono">python main.py</span>，再重新整理這個頁面。</div>
 
   <div id="report" hidden>
   <section class="facts" aria-label="專案概要">
-    <div><div class="eyebrow">Dataset</div><div class="v">50 Startups (Kaggle)</div></div>
+    <div><div class="eyebrow">Dataset</div><div class="v"><a id="fKaggle" target="_blank" rel="noopener" style="color:var(--ink-2)">Life Expectancy (WHO) ↗</a></div></div>
     <div><div class="eyebrow">Records</div><div class="v num" id="fShape"></div></div>
-    <div><div class="eyebrow">Features</div><div class="v">R&amp;D、Admin、Marketing、State</div></div>
-    <div><div class="eyebrow">Target</div><div class="v">Profit（美元）</div></div>
+    <div><div class="eyebrow">Countries · Years</div><div class="v num" id="fCountries"></div></div>
+    <div><div class="eyebrow">Features</div><div class="v" id="fFeatures"></div></div>
+    <div><div class="eyebrow">Target</div><div class="v">Life expectancy（歲）</div></div>
     <div><div class="eyebrow">Train / Test</div><div class="v num" id="fSplit"></div></div>
   </section>
 
@@ -204,12 +218,13 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
     <article class="entry">
       <div class="rail"><div class="dot">0</div></div>
       <div class="body">
-        <header><span class="eyebrow">Phase 2.1 · Collect initial data</span><h2>資料取得與驗證</h2></header>
+        <header><span class="eyebrow">Phase 2.1 · Collect initial data</span><h2>資料來源</h2></header>
         <div class="panel">
           <ul class="clean">
-            <li>本機沒有 CSV 時，以 <span class="mono">requests</span> 從 GitHub 公開副本下載 Kaggle 原檔：<span class="mono" id="srcUrl" style="overflow-wrap:anywhere"></span></li>
-            <li>4 個獨立 repo 的副本 SHA-256 完全相同，程式下載後會再比對雜湊值（<span class="mono" id="sha"></span>…）。</li>
-            <li>驗證結果：<span class="num" id="shape2"></span>，欄位 <span id="cols"></span>。</li>
+            <li>資料集：<b>Life Expectancy (WHO)</b>，Kaggle，作者 KumarRajarshi：<a id="srcLink" target="_blank" rel="noopener" style="color:var(--ink-2);overflow-wrap:anywhere"></a></li>
+            <li>原始資料來自世界衛生組織（WHO）Global Health Observatory 與聯合國的經濟資料，整理成每國每年一列。</li>
+            <li>檔案：<span class="mono">datasets/LifeExpectancy_WHO.csv</span>（Kaggle 下載的 <span class="mono">Life Expectancy Data.csv</span>），<span id="srcShape"></span>。</li>
+            <li>候選特徵（<span id="nFeatRaw"></span> 個，不含國家名稱與目標）：<span id="featRaw"></span></li>
           </ul>
         </div>
       </div>
@@ -220,36 +235,14 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
       <div class="body">
         <header><span class="eyebrow">CRISP-DM Phase 1</span><h2>Business Understanding 商業理解</h2></header>
         <div class="grid2">
-          <div class="panel">
-            <h3>1.1 商業目標 ／ 1.3 資料探勘目標</h3>
-            <ul class="clean">
-              <li>協助創投基金依支出結構與地點，估計新創公司的年利潤。</li>
-              <li>回答三個問題：哪項支出最影響利潤？州別有沒有影響？能預測多準？</li>
-              <li>建模目標：<span class="mono">Profit = f(R&amp;D, Admin, Marketing, State)</span></li>
-            </ul>
-          </div>
-          <div class="panel">
-            <h3>成功標準（事先訂定）</h3>
-            <table><tbody id="critDef"></tbody></table>
-          </div>
-          <div class="panel">
-            <h3>1.2 現況評估</h3>
-            <ul class="clean">
-              <li><b>資源：</b>一份公開 CSV（50 筆）、Python + scikit-learn。</li>
-              <li><b>限制：</b>樣本極少，不用深度模型，必須可解釋。</li>
-              <li><b>風險：</b>估計不穩定（用交叉驗證緩解）；支出為 0 可能其實是缺值。</li>
-            </ul>
-          </div>
-          <div class="panel">
-            <h3>1.4 專案計畫</h3>
-            <ul class="clean">
-              <li>Phase 2：資料概況、相關性、品質檢查</li>
-              <li>Phase 3：清理、State 編碼、切分訓練／測試集、特徵分析</li>
-              <li>Phase 4：所有特徵子集做 OLS，比較 5 種特徵選擇演算法</li>
-              <li>Phase 5：測試集指標對照成功標準，決定是否上線</li>
-              <li>Phase 6：通過才部署，並產出報告</li>
-            </ul>
-          </div>
+          <div class="panel"><h3>1.1 商業目標 ／ 1.3 資料探勘目標</h3><ul class="clean">
+            <li>協助衛生政策分析者，從各國的健康、經濟與社會指標估計平均壽命，並找出最關鍵的指標。</li>
+            <li>回答三個問題：哪些指標與平均壽命最相關？對「沒看過的國家」能預測多準？單一預測的不確定性有多大？</li>
+            <li>建模目標：<span class="mono">Life expectancy = f(指標)</span>，含特徵選擇，以「未見過的國家」評估。</li></ul></div>
+          <div class="panel"><h3>成功標準（建模前訂定）</h3><div class="tbl"><table><tbody id="critDef"></tbody></table></div>
+            <p class="note" style="margin-top:8px">以「測試集裡的國家完全沒出現在訓練集」為前提評估。</p></div>
+          <div class="panel"><h3>1.2 現況評估</h3><ul class="clean" id="situation"></ul></div>
+          <div class="panel"><h3>1.4 專案計畫</h3><ul class="clean" id="plan"></ul></div>
         </div>
       </div>
     </article>
@@ -257,27 +250,12 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
     <article class="entry">
       <div class="rail"><div class="dot">2</div></div>
       <div class="body">
-        <header><span class="eyebrow">CRISP-DM Phase 2</span><h2>Data Understanding 資料理解（EDA）</h2></header>
-        <div class="grid3">
-          <div class="panel">
-            <h3>2.4 資料品質</h3>
-            <ul class="clean checks" id="quality"></ul>
-            <p class="note" style="margin-top:10px" id="qualityNote"></p>
-          </div>
-          <div class="panel">
-            <h3>與 Profit 的相關係數</h3>
-            <div id="corrBars"></div>
-          </div>
-          <div class="panel" style="background:var(--ink-soft);border-color:transparent">
-            <h3>EDA 主要發現</h3>
-            <ul class="clean" id="findings"></ul>
-          </div>
-        </div>
+        <header><span class="eyebrow">CRISP-DM Phase 2</span><h2>Data Understanding 資料理解</h2></header>
         <div class="grid2">
-          <figure class="panel"><div id="scatter"></div><figcaption id="scatterCap"></figcaption></figure>
-          <figure class="panel"><div id="heatmap"></div><figcaption>數值欄位相關係數矩陣（全部資料）。</figcaption></figure>
-          <figure class="panel"><div id="hist"></div><figcaption>Profit 分布（8 個區間），最左邊的區間含離群值。</figcaption></figure>
-          <figure class="panel"><div id="states"></div><figcaption>各州平均 Profit。誤差線為 ±1 標準差。</figcaption></figure>
+          <figure class="panel"><h3>2.4 缺值數量</h3><div id="chMissing"></div><figcaption id="capMissing"></figcaption></figure>
+          <figure class="panel"><h3>2.3 與平均壽命的相關係數</h3><div id="chCorr"></div><figcaption>Pearson r（原始資料）。藍色為正相關、紅色為負相關。</figcaption></figure>
+          <figure class="panel"><h3>平均壽命分布</h3><div id="chHist"></div><figcaption id="capHist"></figcaption></figure>
+          <div class="panel"><h3>2.4 不合理數值</h3><div class="tbl"><table><thead><tr><th>問題</th><th class="n">筆數</th><th class="n">比例</th><th>處理方式</th></tr></thead><tbody id="quality"></tbody></table></div></div>
         </div>
       </div>
     </article>
@@ -287,97 +265,39 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
       <div class="body">
         <header><span class="eyebrow">CRISP-DM Phase 3</span><h2>Data Preparation 資料準備</h2></header>
         <div class="flow" aria-label="前處理流程">
-          <div class="step"><b>Raw data</b><span>50_Startups.csv</span></div>
-          <div class="arrow">→</div>
-          <div class="step"><b>train_test_split</b><span id="splitStep"></span></div>
-          <div class="arrow">→</div>
-          <div class="step"><b>OneHotEncoder</b><span>State，drop="first"</span></div>
-          <div class="arrow">→</div>
-          <div class="step"><b>StandardScaler</b><span>三個支出欄位</span></div>
-          <div class="arrow">→</div>
-          <div class="step"><b>ColumnTransformer</b><span>包在 Pipeline 內</span></div>
+          <div class="step"><b>3.1 選擇</b><span id="stSelect"></span></div><div class="arrow">→</div>
+          <div class="step"><b>3.2 清理</b><span>不合理的 0 改為缺值</span></div><div class="arrow">→</div>
+          <div class="step"><b>3.3 建構</b><span id="stLog"></span></div><div class="arrow">→</div>
+          <div class="step"><b>3.4 切分</b><span id="stSplit"></span></div><div class="arrow">→</div>
+          <div class="step"><b>3.5 補值</b><span id="stImpute"></span></div>
         </div>
-        <div class="panel">
-          <ul class="clean checks">
-            <li>先切分再 fit 前處理器，編碼與標準化只看訓練集，避免資料洩漏。</li>
-            <li><span class="mono">drop="first"</span> 避開虛擬變數陷阱（3 州只放 2 個 dummy）。</li>
-            <li>支出為 0 的列保留：可能是真的沒花錢，而且 50 筆樣本刪不起。</li>
-            <li>離群值保留：是真實公司而非輸入錯誤，刪掉會讓模型偏向中段。</li>
-          </ul>
-        </div>
-      </div>
-    </article>
-
-    <article class="entry">
-      <div class="rail"><div class="dot">3.6</div></div>
-      <div class="body">
-        <header><span class="eyebrow" id="fsEyebrow"></span><h2>進階特徵選擇分析</h2></header>
         <div class="grid2">
-          <div class="panel">
-            <h3>五種指標</h3>
-            <div class="tbl">
-              <table>
-                <thead><tr><th>特徵</th><th class="n">Pearson r</th><th class="n">F-score</th><th class="n">RFE 排名</th><th class="n">Lasso 係數</th><th class="n">RF 重要度</th></tr></thead>
-                <tbody id="fsBody"></tbody>
-              </table>
-            </div>
-            <p class="note" style="margin-top:10px">F-score 來自 SelectKBest(f_regression)。RFE 以 LinearRegression 逐一剔除。Lasso 用 LassoCV 自動選 α，係數是標準化後的值。RF 為 500 棵樹的 Random Forest。</p>
-          </div>
-          <figure class="panel"><div id="rfBars"></div><figcaption>Random Forest 特徵重要度（%）。</figcaption></figure>
+          <div class="panel"><h3>為什麼要「依國家」切分？</h3>
+            <p>每個國家最多有 16 年的資料，同一國家的各年份非常相似。若隨機切分，同一個國家會同時出現在訓練集和測試集，模型等於「看過答案」，分數會被高估。因此本專案用 <span class="mono">GroupShuffleSplit</span> 讓測試集的國家完全不出現在訓練集，交叉驗證也用 <span class="mono">GroupKFold</span>。</p>
+            <p class="note" style="margin-top:8px" id="testCountries"></p></div>
+          <div class="panel"><h3>偏態變數取 log</h3><div class="tbl"><table><thead><tr><th>變數</th><th class="n">偏態（前）</th><th class="n">偏態（後）</th></tr></thead><tbody id="skew"></tbody></table></div>
+            <p class="note" style="margin-top:8px">使用 <span class="mono">log(1 + x)</span>，讓分布接近對稱、與平均壽命的關係更接近線性。</p></div>
         </div>
-        <div class="panel" style="background:var(--warn-soft);border-color:transparent">
-          <h3>結論</h3>
-          <p id="fsConclusion"></p>
-        </div>
+        <div class="panel"><h3>補值策略</h3><ul class="clean" id="imputeList"></ul></div>
       </div>
     </article>
 
     <article class="entry">
       <div class="rail"><div class="dot">4</div></div>
       <div class="body">
-        <header><span class="eyebrow">CRISP-DM Phase 4</span><h2>Modeling 建模</h2></header>
+        <header><span class="eyebrow">CRISP-DM Phase 4</span><h2>Modeling 建模與特徵選擇</h2></header>
         <div class="grid2">
-          <div class="panel">
-            <h3>4.1 建模技術與假設</h3>
-            <ul class="clean">
-              <li>技術：OLS 多元線性迴歸（<span class="mono">LinearRegression</span>）</li>
-              <li>線性：EDA 散佈圖確認</li>
-              <li id="vifLine"></li>
-              <li>殘差同質變異、常態性：<span class="mono">crispdm_output/04_residual_diagnostics.png</span></li>
-            </ul>
-          </div>
-          <div class="panel">
-            <h3>4.2 測試設計 ／ 4.4 模型選擇</h3>
-            <ul class="clean" id="selection"></ul>
-          </div>
+          <figure class="panel"><h3>4.1 共線性檢查（VIF，全部候選特徵）</h3><div id="chVif"></div><figcaption>VIF &gt; 10 代表嚴重共線（紅色）。嬰兒死亡數與五歲以下死亡數幾乎是同一件事，兩者 VIF 都超過 190；特徵選擇會只留下其中之一。</figcaption></figure>
+          <figure class="panel"><h3>4.3 特徵選擇：Test RMSE 對特徵數</h3><div class="legend" id="legProg"></div><div id="chProg"></div><figcaption id="capProg"></figcaption></figure>
         </div>
-
-        <div class="panel">
-          <h3>5 種特徵選擇演算法：用 1 到 5 個特徵的 Test RMSE</h3>
-          <div class="legend" id="algoLegend"></div>
-          <div id="algoChart"></div>
-          <p class="note" style="margin-top:8px">每種演算法只看訓練集，以 5-fold CV RMSE 決定加入順序或子集；測試集只用來回報結果。重疊的線代表該演算法在那一步選到相同特徵：Forward SFS 與 Exhaustive Search 每一步都相同，Lasso 與 RFE 也每一步都相同。</p>
-        </div>
-        <div class="panel">
-          <h3>各演算法的逐步結果</h3>
-          <div class="tabs" role="tablist" id="algoTabs"></div>
-          <div class="tbl">
-            <table>
-              <thead><tr><th class="n">#</th><th>Selected Features</th><th class="n">CV RMSE（訓練）</th><th class="n">Test RMSE</th><th class="n">Test R²</th></tr></thead>
-              <tbody id="algoBody"></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="panel">
-          <h3>各演算法的最佳子集（以 CV RMSE 選）</h3>
-          <div class="tbl">
-            <table>
-              <thead><tr><th>Method</th><th class="n">特徵數</th><th>Selected Features</th><th class="n">CV RMSE</th><th class="n">Test RMSE</th><th class="n">Test R²</th></tr></thead>
-              <tbody id="compBody"></tbody>
-            </table>
-          </div>
-          <p class="note" style="margin-top:10px" id="compNote"></p>
-        </div>
+        <div class="panel"><h3>各演算法的 1-SD 精簡子集</h3><div class="tbl"><table><thead><tr><th>演算法</th><th class="n">k（CV 最佳）</th><th class="n">k（1-SD）</th><th>選出的特徵</th><th class="n">CV RMSE</th><th class="n">Test RMSE</th><th class="n">Test R²</th></tr></thead><tbody id="fsComp"></tbody></table></div>
+          <p class="note" style="margin-top:8px" id="finalNote"></p></div>
+        <div class="panel"><h3>4.4 模型比較（測試集 = 沒看過的國家）</h3><div class="tbl"><table><thead><tr><th>模型</th><th class="n">特徵數</th><th class="n">Test R²</th><th class="n">RMSE（歲）</th><th class="n">MAE（歲）</th><th class="n">MAPE</th><th class="n">分組 CV R²</th></tr></thead><tbody id="models"></tbody></table></div>
+          <p class="note" style="margin-top:8px">Ridge 與 Lasso 以分組交叉驗證挑選正則化強度。選出的 α 很小，係數幾乎沒有被壓縮，表現和全部特徵的 OLS 相近；精簡模型只用 4 個特徵，誤差只多約 0.26 歲，但更容易解釋。</p></div>
+        <div class="panel"><h3>最終模型：迴歸方程式與係數（訓練集）</h3>
+          <p class="mono" id="equation" style="overflow-wrap:anywhere;font-weight:600"></p>
+          <div class="tbl" style="margin-top:10px"><table><thead><tr><th>變數</th><th class="n">係數</th><th class="n">SE</th><th class="n">p 值</th><th class="n">95% CI</th><th class="n">叢集穩健 SE</th><th class="n">叢集穩健 p</th><th class="n">標準化 β</th></tr></thead><tbody id="coef"></tbody></table></div>
+          <p class="note" style="margin-top:8px" id="olsNote"></p></div>
       </div>
     </article>
 
@@ -386,25 +306,16 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
       <div class="body">
         <header><span class="eyebrow">CRISP-DM Phase 5</span><h2>Evaluation 評估</h2></header>
         <div class="tiles" id="tiles"></div>
+        <figure class="panel"><h3>預測圖：95% 信賴區間與預測區間（測試集）</h3><div class="legend" id="legPi"></div><div id="chPi"></div><figcaption id="capPi"></figcaption></figure>
+        <figure class="panel"><h3 id="slrTitle"></h3><div class="legend" id="legSlr"></div><div id="chSlr"></div><figcaption id="capSlr"></figcaption></figure>
+        <figure class="panel"><h3>殘差診斷</h3><img src="crispdm_output/06_residual_diagnostics.png" alt="實際 vs 預測、殘差 vs 預測值、殘差直方圖、常態 Q-Q 圖" loading="lazy" style="width:100%;border-radius:8px"><figcaption>左起：實際 vs 預測（測試集）、殘差 vs 預測值、殘差分布、常態 Q-Q 圖（由 main.py 產生）。</figcaption></figure>
         <div class="grid2">
-          <div class="panel">
-            <h3>5.1 對照成功標準</h3>
-            <table><tbody id="critBody"></tbody></table>
-            <p class="note" style="margin-top:10px" id="fullNote"></p>
-          </div>
-          <div class="panel">
-            <h3>5.2 流程審查 ／ 5.3 下一步</h3>
-            <ul class="clean" id="review" style="gap:8px"></ul>
-            <p style="margin-top:10px" id="decision"></p>
-          </div>
+          <div class="panel"><h3>線性迴歸假設檢定</h3><div class="tbl"><table><thead><tr><th>假設</th><th class="n">統計量</th><th class="n">p 值</th><th>結果</th></tr></thead><tbody id="assume"></tbody></table></div>
+            <p class="note" style="margin-top:8px">真實的跨國資料很難完全符合 OLS 假設。誤差在同一國家內高度相關（Durbin-Watson 遠低於 2），所以係數表另外提供「依國家分群」的叢集穩健標準誤，推論以它為準。這些未通過的檢定也代表模型還有改進空間（見 5.3）。</p></div>
+          <div class="panel"><h3>5.1 成功標準 ／ 5.2 流程審查</h3><div class="tbl"><table><tbody id="crit"></tbody></table></div><ul class="clean" id="review" style="margin-top:12px"></ul>
+            <p style="margin-top:12px" id="decision"></p></div>
         </div>
-        <div class="grid2">
-          <figure class="panel"><div id="avp"></div><figcaption id="avpCap"></figcaption></figure>
-          <div class="panel">
-            <h3>商業問題的答案</h3>
-            <ul class="clean" id="answers"></ul>
-          </div>
-        </div>
+        <div class="panel"><h3>商業問題的答案</h3><ul class="clean" id="answers"></ul></div>
       </div>
     </article>
 
@@ -413,36 +324,43 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
       <div class="body">
         <header><span class="eyebrow">CRISP-DM Phase 6</span><h2>Deployment 部署</h2></header>
         <div class="flow" aria-label="部署流程">
-          <div class="step"><b>Phase 5 核准</b><span>未通過就不部署</span></div>
-          <div class="arrow">→</div>
-          <div class="step"><b>用全部資料重新訓練</b><span>選定的 Pipeline</span></div>
-          <div class="arrow">→</div>
-          <div class="step"><b>joblib 序列化</b><span>startup_profit_model.joblib</span></div>
-          <div class="arrow">→</div>
-          <div class="step"><b>predict_profit()</b><span>輸入 dict，回傳預測</span></div>
+          <div class="step"><b>Phase 5 核准</b><span>未通過就不部署</span></div><div class="arrow">→</div>
+          <div class="step"><b>用全部資料重新擬合</b><span>最終特徵組合</span></div><div class="arrow">→</div>
+          <div class="step"><b>joblib 儲存</b><span>life_expectancy_model.joblib</span></div><div class="arrow">→</div>
+          <div class="step"><b>predict_life_expectancy()</b><span>原始欄位進、預測與區間出</span></div>
         </div>
         <div class="grid2">
-          <div class="panel">
-            <h3>範例預測</h3>
-            <div class="tbl">
-              <table>
-                <thead><tr><th>R&amp;D</th><th>Admin</th><th>Marketing</th><th>State</th><th class="n">預測 Profit</th></tr></thead>
-                <tbody id="exBody"></tbody>
-              </table>
-            </div>
-            <p class="note" style="margin-top:10px" id="exNote"></p>
-          </div>
-          <div class="panel">
-            <h3>6.2 監控與維護計畫</h3>
-            <ul class="clean">
-              <li>記錄每次預測與輸入，實際利潤出來後比對。</li>
-              <li>每季重新訓練，或滾動 MAPE 超過 15% 時重訓。</li>
-              <li>輸入超出訓練範圍（data drift）時發出警示。</li>
-              <li>出現新的州別時發出警示。</li>
-            </ul>
-          </div>
+          <div class="panel"><h3>範例預測（測試集國家，2014 年）</h3><div class="tbl"><table><thead><tr><th>國家</th><th class="n">實際</th><th class="n">預測</th><th class="n">95% 預測區間</th></tr></thead><tbody id="examples"></tbody></table></div>
+            <p class="note" style="margin-top:8px">Belgium 2014 年的實際值 89.0 歲明顯偏高（比利時實際約 81 歲），是原始資料的錯誤；模型預測 80.0 歲反而較合理。這也提醒資料品質檢查的重要。</p></div>
+          <div class="panel"><h3>6.2 監控與維護計畫</h3><ul class="clean" id="monitor"></ul></div>
         </div>
-        <p class="note">6.4 專案回顧：樣本只有 50 筆，結果變異大，用於高風險決策前應蒐集更多資料。</p>
+      </div>
+    </article>
+
+    <article class="entry">
+      <div class="rail"><div class="dot">AI</div></div>
+      <div class="body">
+        <header><span class="eyebrow">AI 協助說明</span><h2>GPT 輔助內容</h2></header>
+        <div class="panel ai-box">
+          <p class="note">依作業規定標示：以下列出本專案中由生成式 AI 工具協助完成的部分。完整對話紀錄另以 PDF 繳交。</p>
+          <ul class="clean" id="aiList" style="margin-top:10px">
+            <li><b>使用的 AI 工具：</b><span class="todo">（請填寫，例如：ChatGPT、Claude）</span></li>
+            <li><b>AI 協助的部分：</b>資料集挑選建議、資料清理與補值策略、CRISP-DM 程式（main.py、feature_progression_analysis.py）、瀏覽器端統計引擎與特徵選擇演算法（regression.js、selection.js）、網頁版面與圖表、本報告文字草稿。</li>
+            <li><b>本人負責與確認的部分：</b><span class="todo">（請填寫，例如：題目與資料集決定、執行與檢查結果、修改與最終判斷）</span></li>
+            <li><b>驗證方式：</b>網頁計算結果已與 Python（statsmodels、scikit-learn）逐項比對一致。</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <article class="entry">
+      <div class="rail"><div class="dot">NB</div></div>
+      <div class="body">
+        <header><span class="eyebrow">研究摘要</span><h2>NotebookLM 摘要</h2></header>
+        <div class="panel ai-box">
+          <p class="note">使用 NotebookLM 研究網路上同主題（WHO Life Expectancy 迴歸分析）的解法後撰寫的摘要（100 字以上）。</p>
+          <p class="todo" style="margin-top:10px">（請貼上 NotebookLM 摘要，並列出使用的來源網址）</p>
+        </div>
       </div>
     </article>
   </div>
@@ -460,7 +378,7 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
   <div style="max-width:1240px;margin:0 auto;display:grid;gap:6px">
     <b style="color:var(--fg)">參考資料與致謝</b>
     <span>版面參考：<a href="https://huanchen1107.github.io/AIoT-DIC2-MultipleLR/" target="_blank" rel="noopener" style="color:var(--ink)">AIoT-DIC2 Multiple LR Explorer</a>；統計計算機風格：<a href="https://statsunlock.com/multiple-linear-regression-calculator/" target="_blank" rel="noopener" style="color:var(--ink)">StatsUnlock Multiple Linear Regression Calculator</a></span>
-    <span>資料集：50 Startups（Kaggle）；方法論：CRISP-DM</span>
+    <span>資料集：<a href="https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who" target="_blank" rel="noopener" style="color:var(--ink)">Life Expectancy (WHO)</a>（Kaggle，KumarRajarshi；原始資料來自 WHO Global Health Observatory）；方法論：CRISP-DM</span>
   </div>
 </footer>
 
@@ -468,237 +386,226 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
 <script>
 (function () {
   const M = window.MODEL_DATA;
-  if (!M) { document.getElementById("missing").hidden = false; return; }
-  document.getElementById("report").hidden = false;
-
-  const NS = "http://www.w3.org/2000/svg";
   const $ = id => document.getElementById(id);
-  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  const usd = (v, d = 0) => "$" + Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
-  const n2 = v => Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fmtK = v => (Math.abs(v) >= 1000 ? Math.round(v / 1000) + "k" : String(+v.toFixed(3)));
-  const chips = fs => fs.map(f => `<span class="chip">${esc(f)}</span>`).join("");
-  const INK = "var(--ink)", MONEY = "var(--money)", WARN = "var(--warn)", MUTED = "var(--muted)", FG = "var(--fg)", NEG = "var(--neg)";
-  const SERIES = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)", "var(--s5)"];
+  if (!M || !M.dataset) { $("missingData").hidden = false; return; }
+  $("report").hidden = false;
 
+  // ---------- helpers ----------
+  const NS = "http://www.w3.org/2000/svg";
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const f2 = v => (v == null ? "—" : Number(v).toFixed(2));
+  const f3 = v => (v == null ? "—" : Number(v).toFixed(3));
+  const f4 = v => (v == null ? "—" : Number(v).toFixed(4));
+  const fp = p => (p == null ? "—" : p < 0.001 ? "< .001" : p.toFixed(3).replace(/^0/, ""));
+  const coefF = v => (Math.abs(v) >= 100 ? v.toFixed(2) : Math.abs(v) >= 1 ? v.toFixed(3) : v.toFixed(4));
+  const chips = list => list.map(f => `<span class="chip">${esc(f)}</span>`).join("");
+  const pill = (ok, yes = "PASS", no = "FAIL") => ok == null ? `<span class="pill">—</span>` : `<span class="pill ${ok ? "pass" : "warn"}">${ok ? "✓ " + yes : "✕ " + no}</span>`;
   function el(tag, attrs, parent, text) {
     const e = document.createElementNS(NS, tag);
-    for (const k in attrs) {
-      const v = String(attrs[k]);
-      if ((k === "fill" || k === "stroke") && v.startsWith("var(")) e.style.setProperty(k, v);
-      else e.setAttribute(k, v);
-    }
+    for (const k in attrs) { const v = String(attrs[k]); if ((k === "fill" || k === "stroke") && v.startsWith("var(")) e.style.setProperty(k, v); else e.setAttribute(k, v); }
     if (text != null) e.textContent = text;
     if (parent) parent.appendChild(e);
     return e;
   }
-  function niceTicks(lo, hi, n) {
-    const span = hi - lo, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  function niceTicks(lo, hi, n = 5) {
+    const span = hi - lo || 1, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
     const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n) || 10 * mag;
     const out = [];
     for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
-    return out;
+    return { ticks: out, step };
   }
-  function niceRange(vals, pad) {
-    const lo = Math.min(...vals), hi = Math.max(...vals), p = (hi - lo || Math.abs(hi) || 1) * pad;
-    const t = niceTicks(lo - p, hi + p, 5);
-    const step = t[1] - t[0];
-    return [Math.floor((lo - p) / step) * step, Math.ceil((hi + p) / step) * step];
+  function domain(vals, pad = 0.05) {
+    let lo = Math.min(...vals), hi = Math.max(...vals); const p = (hi - lo || 1) * pad; lo -= p; hi += p;
+    const { step } = niceTicks(lo, hi); return [Math.floor(lo / step) * step, Math.ceil(hi / step) * step];
   }
-  function frame(id, o) {
-    const W = 460, H = o.h || 280, m = { l: 56, r: 16, t: 14, b: 40 };
+  function frame(host, o) {
+    const W = o.w || 560, H = o.h || 300, m = Object.assign({ l: 56, r: 16, t: 12, b: 42 }, o.m || {});
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart", role: "img", "aria-label": o.label });
-    $(id).replaceChildren(svg);
+    $(host).replaceChildren(svg);
     const x = v => m.l + (v - o.x[0]) / (o.x[1] - o.x[0]) * (W - m.l - m.r);
     const y = v => H - m.b - (v - o.y[0]) / (o.y[1] - o.y[0]) * (H - m.t - m.b);
-    (o.yt || niceTicks(o.y[0], o.y[1], 5)).forEach(t => {
-      el("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), class: "grid" }, svg);
-      el("text", { x: m.l - 6, y: y(t) + 3, "text-anchor": "end" }, svg, (o.yf || fmtK)(t));
-    });
-    (o.xt || niceTicks(o.x[0], o.x[1], 6)).forEach(t => {
-      el("text", { x: x(t), y: H - m.b + 15, "text-anchor": "middle" }, svg, (o.xf || fmtK)(t));
-    });
+    (o.yt || niceTicks(o.y[0], o.y[1]).ticks).forEach(t => { el("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), class: "grid" }, svg); el("text", { x: m.l - 6, y: y(t) + 3, "text-anchor": "end" }, svg, (o.yf || String)(t)); });
+    (o.xt || niceTicks(o.x[0], o.x[1], 6).ticks).forEach(t => el("text", { x: x(t), y: H - m.b + 15, "text-anchor": "middle" }, svg, (o.xf || String)(t)));
     el("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, class: "axis" }, svg);
-    el("text", { x: (m.l + W - m.r) / 2, y: H - 6, "text-anchor": "middle", class: "t-strong" }, svg, o.xl);
-    el("text", { x: 12, y: (m.t + H - m.b) / 2, "text-anchor": "middle", class: "t-strong",
-      transform: `rotate(-90 12 ${(m.t + H - m.b) / 2})` }, svg, o.yl);
+    if (o.xl) el("text", { x: (m.l + W - m.r) / 2, y: H - 6, "text-anchor": "middle", class: "t-strong" }, svg, o.xl);
+    if (o.yl) el("text", { x: 12, y: (m.t + H - m.b) / 2, "text-anchor": "middle", class: "t-strong", transform: `rotate(-90 12 ${(m.t + H - m.b) / 2})` }, svg, o.yl);
     return { svg, x, y, W, H, m };
   }
-  function hbars(id, rows, o) {
-    const W = 460, rowH = 30, lw = o.lw || 130, H = rows.length * rowH + 8;
+  // horizontal bars; rows = [label, value, color]
+  function hbars(host, rows, o) {
+    const W = 560, rowH = o.rowH || 22, lw = o.lw || 200, H = rows.length * rowH + 10;
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart", role: "img", "aria-label": o.label });
-    $(id).replaceChildren(svg);
+    $(host).replaceChildren(svg);
+    const lo = o.min != null ? o.min : 0, hi = o.max, x = v => lw + (v - lo) / (hi - lo) * (W - lw - 70);
+    if (lo < 0) el("line", { x1: x(0), x2: x(0), y1: 2, y2: H - 4, class: "axis" }, svg);
     rows.forEach((r, i) => {
-      const yy = i * rowH + 6, w = Math.abs(r[1]) / o.max * (W - lw - 80);
-      el("text", { x: lw - 8, y: yy + 14, "text-anchor": "end", class: "t-strong" }, svg, r[0]);
-      el("rect", { x: lw, y: yy + 3, width: Math.max(w, 1.5), height: 16, rx: 3, fill: r[2] || INK }, svg);
-      el("text", { x: lw + w + 6, y: yy + 15 }, svg, o.f(r[1]));
+      const yy = i * rowH + 5, v = Math.max(lo, Math.min(hi, r[1]));
+      el("text", { x: lw - 8, y: yy + rowH / 2 + 2, "text-anchor": "end", class: "t-strong" }, svg, r[0]);
+      const x0 = x(Math.min(0, v)), w = Math.abs(x(v) - x(0));
+      el("rect", { x: lo < 0 ? x0 : x(0), y: yy + 3, width: Math.max(w, 1.5), height: rowH - 8, rx: 3, fill: r[2] || "var(--s1)" }, svg);
+      el("text", { x: (v >= 0 ? x(v) + 6 : x(v) - 6), y: yy + rowH / 2 + 2, "text-anchor": v >= 0 ? "start" : "end" }, svg, o.f(r[1]));
     });
   }
-  function line(g, data, color, opts = {}) {
-    el("polyline", { points: data.map(d => `${g.x(d[0])},${g.y(d[1])}`).join(" "), fill: "none", stroke: color,
-      "stroke-width": opts.w || 2, "stroke-dasharray": opts.dash || "none", "stroke-opacity": opts.op || 1 }, g.svg);
-    data.forEach(d => el("circle", { cx: g.x(d[0]) + (opts.dx || 0), cy: g.y(d[1]), r: opts.r || 4, fill: color }, g.svg));
+  function legend(host, items) {
+    $(host).innerHTML = items.map(it => `<span style="display:inline-flex;align-items:center;gap:6px"><i style="display:inline-block;width:${it.dot ? 9 : 14}px;height:${it.dot ? 9 : it.band ? 10 : 3}px;border-radius:${it.dot ? "50%" : "2px"};background:${it.color}"></i>${esc(it.label)}</span>`).join("");
+  }
+  const tip = $("tip");
+  function bindTip(node, fn) {
+    node.addEventListener("pointermove", e => {
+      const t = fn(e); if (!t) return;
+      tip.innerHTML = `<div class="t-title">${esc(t[0])}</div>` + t[1].map(r => `<div class="t-row"><b>${esc(r[0])}</b><span>${esc(r[1])}</span></div>`).join("");
+      tip.hidden = false;
+      const w = tip.offsetWidth, h = tip.offsetHeight;
+      let x = e.clientX + 14, y = e.clientY + 14;
+      if (x + w > innerWidth - 8) x = e.clientX - w - 14;
+      if (y + h > innerHeight - 8) y = e.clientY - h - 14;
+      tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+    });
+    node.addEventListener("pointerleave", () => { tip.hidden = true; });
   }
 
-  const D = M.data, met = M.metrics, sel = M.selected_features;
+  const D = M.dataset, B = M.business, P = M.prep, met = M.metrics, sc = B.success_criteria;
 
-  // Header & facts
-  $("eyebrow").textContent = `AIoT Week 5 · Multiple Linear Regression · ${M.generated}`;
-  $("fShape").textContent = `${D.shape[0]} × ${D.shape[1]}`;
-  $("fSplit").textContent = `${M.settings.n_train} / ${M.settings.n_test}`;
-  $("srcUrl").textContent = D.source_url;
-  $("sha").textContent = D.sha256_prefix;
-  $("shape2").textContent = `${D.shape[0]} 筆 × ${D.shape[1]} 欄`;
-  $("cols").innerHTML = chips(D.columns);
-  $("splitStep").textContent = `${Math.round((1 - M.settings.test_size) * 100)} / ${Math.round(M.settings.test_size * 100)}，random_state=${M.settings.random_state}`;
+  // ---------- header / facts ----------
+  $("eyebrow").textContent = `AIoT HW2 · Multiple Linear Regression · CRISP-DM · ${M.generated}`;
+  $("fKaggle").href = D.kaggle_url;
+  $("fShape").textContent = `${D.rows.toLocaleString()} × ${D.cols}`;
+  $("fCountries").textContent = `${D.countries} 國 · ${D.years[0]}–${D.years[1]}`;
+  $("fFeatures").textContent = `${D.features_raw.length} 個候選 → ${D.features.length} 個（處理後）`;
+  $("fSplit").textContent = `${P.train_countries} / ${P.test_countries} 國`;
 
-  // Phase 1 success criteria
-  const sc = M.business.success_criteria;
-  $("critDef").innerHTML = `<tr><td>測試集 R²</td><td class="n">≥ ${sc.test_R2_min}</td></tr><tr><td>交叉驗證 R²</td><td class="n">≥ ${sc.cv_R2_min}</td></tr><tr><td>MAPE（平均百分比誤差）</td><td class="n">≤ ${sc.MAPE_max_pct}%</td></tr>`;
+  // ---------- 0 source ----------
+  $("srcLink").textContent = D.kaggle_url; $("srcLink").href = D.kaggle_url;
+  $("srcShape").textContent = `${D.rows.toLocaleString()} 列 × ${D.cols} 欄`;
+  $("nFeatRaw").textContent = D.features_raw.length;
+  $("featRaw").innerHTML = chips(D.features_raw);
 
-  // Phase 2
-  const sc_ = Object.entries(D.state_counts).map(([k, v]) => `${k} ${v}`).join("、");
-  $("quality").innerHTML = `<li>資料形狀 <span class="num">(${D.shape.join(", ")})</span></li><li>缺值：${D.missing || "無"}</li><li>重複列：${D.duplicates || "無"}</li><li>State：${esc(sc_)}</li>`;
-  const zeros = Object.entries(D.zeros).filter(([, v]) => v > 0).map(([k, v]) => `${k} 有 ${v} 筆`).join("、");
-  const outl = D.outliers.map(o => `第 ${o.index} 筆，${usd(o.Profit)}`).join("；");
-  $("qualityNote").textContent = `支出為 0：${zeros || "無"}。Profit 離群值（IQR 規則）：${D.outliers.length} 筆${outl ? "（" + outl + "）" : ""}。`;
+  // ---------- 1 business ----------
+  $("critDef").innerHTML = `<tr><td>測試集 R²</td><td class="n">≥ ${sc.test_R2_min}</td></tr><tr><td>測試集 RMSE</td><td class="n">≤ ${sc.test_RMSE_max} 歲</td></tr><tr><td>分組 5-fold CV R²</td><td class="n">≥ ${sc.cv_R2_min}</td></tr>`;
+  const S = M.situation;
+  $("situation").innerHTML = [`<b>資源：</b>一份公開 Kaggle CSV（${D.rows.toLocaleString()} 列）、Python（scikit-learn、statsmodels）。`, "<b>限制：</b>模型必須可解釋（線性），方便政策討論。",
+    ...S.risks.map((r, i) => `<b>風險 ${i + 1}：</b>` + ["缺值很多（44% 的列至少缺一個值）。", "有不合理的數值（例如國家平均 BMI 超過 50），代表輸入錯誤。", "每個國家最多出現 16 次，隨機切分會讓同一國家同時出現在訓練與測試集。"][i]),
+    "<b>成本效益：</b>建置成本低，可輔助健康支出的優先順序；但相關不等於因果。"].map(t => `<li>${t}</li>`).join("");
+  $("plan").innerHTML = ["Phase 2：資料概況、缺值、不合理值、相關性", "Phase 3：清理、偏態變數取 log、依國家切分、補值", "Phase 4：VIF、特徵選擇（Lasso、Forward SFS、RFE、ElasticNet）、OLS／Ridge／Lasso", "Phase 5：對照成功標準、假設檢定、預測區間", "Phase 6：通過才部署，儲存模型與報告"].map(t => `<li>${t}</li>`).join("");
 
-  const names = D.corr.names, C = D.corr.matrix, pi = names.indexOf("Profit");
-  const corrRows = names.map((n, i) => [n, C[pi][i]]).filter(r => r[0] !== "Profit").sort((a, b) => b[1] - a[1]);
-  hbars("corrBars", corrRows.map(r => [r[0].replace(" Spend", ""), r[1]]), { label: "與 Profit 的相關係數", max: 1, lw: 110, f: v => "r = " + v.toFixed(3) });
-  const top = corrRows[0], low = corrRows[corrRows.length - 1];
-  const ri = names.indexOf("R&D Spend"), mi = names.indexOf("Marketing Spend");
-  const best = D.state_profit.reduce((a, b) => (a.mean > b.mean ? a : b)), worst = D.state_profit.reduce((a, b) => (a.mean < b.mean ? a : b));
-  $("findings").innerHTML = `<li>${esc(top[0])} ↔ Profit 高度線性相關 <b class="num">r = ${top[1].toFixed(3)}</b></li><li>${esc(low[0])} ↔ Profit 幾乎無關 <b class="num">r = ${low[1].toFixed(3)}</b></li><li>R&amp;D 與 Marketing 彼此相關 <b class="num">r = ${C[ri][mi].toFixed(3)}</b>，要注意共線性</li><li>各州平均利潤差 ${usd(best.mean - worst.mean)}（${esc(best.state)} 最高），但州內標準差達 ${usd(Math.min(...D.state_profit.map(s => s.std)))} 以上</li>`;
+  // ---------- 2 data understanding ----------
+  const miss = Object.entries(M.data.missing);
+  hbars("chMissing", miss.map(([k, v]) => [k, v, v > 300 ? "var(--s3)" : "var(--s1)"]), { label: "各欄缺值數", max: Math.max(...miss.map(m => m[1])) * 1.1, lw: 230, f: v => v.toLocaleString() });
+  $("capMissing").textContent = `${miss.length} 個欄位有缺值；${M.data.rows_with_missing.toLocaleString()} 列（${(M.data.rows_with_missing / D.rows * 100).toFixed(0)}%）至少缺一個值，所以不能直接刪掉有缺值的列。`;
+  const corr = Object.entries(M.data.corr_target).sort((a, b) => a[1] - b[1]);
+  hbars("chCorr", corr.map(([k, v]) => [k, v, v < 0 ? "var(--s5)" : "var(--s4)"]), { label: "與平均壽命的相關係數", min: -1, max: 1, lw: 230, f: v => v.toFixed(2) });
+  const H = M.data.target_hist, ts = M.data.target_stats;
+  let g = frame("chHist", { x: [H.edges[0], H.edges[H.edges.length - 1]], y: [0, Math.ceil(Math.max(...H.counts) * 1.1 / 50) * 50], xl: "Life expectancy（歲）", yl: "筆數", label: "平均壽命分布" });
+  H.counts.forEach((c, i) => el("rect", { x: g.x(H.edges[i]) + 0.5, y: g.y(c), width: Math.max(1, g.x(H.edges[i + 1]) - g.x(H.edges[i]) - 1), height: g.y(0) - g.y(c), rx: 2, fill: "var(--s1)", "fill-opacity": 0.85 }, g.svg));
+  $("capHist").textContent = `平均 ${f2(ts.mean)} 歲、標準差 ${f2(ts.std)}、範圍 ${ts.min}–${ts.max} 歲；左尾的低壽命多為愛滋病流行嚴重的國家。`;
+  const QZ = [["國家平均 BMI 低於 10 或高於 50（不可能的數值）", "刪除 BMI 欄（錯誤太多，無法可靠補值）"], ["教育年數 Schooling = 0", "視為缺值，補值"], ["收入組成指數 = 0", "視為缺值，補值"], ["健康支出比例 percentage expenditure = 0", "視為缺值，補值"], ["平均壽命（目標）缺值", "刪除該列"]];
+  $("quality").innerHTML = M.data.quality.map((q, i) => `<tr><td>${esc(QZ[i] ? QZ[i][0] : q.issue)}</td><td class="n">${q.count.toLocaleString()}</td><td class="n">${q.pct}%</td><td>${esc(QZ[i] ? QZ[i][1] : q.action)}</td></tr>`).join("");
 
-  // Scatter
-  const xs = D.scatter.map(p => p[0]), ys = D.scatter.map(p => p[1]);
-  const sx = [0, Math.ceil(Math.max(...xs) / 25000) * 25000], sy = [0, Math.ceil(Math.max(...ys) / 25000) * 25000];
-  let g = frame("scatter", { x: sx, y: sy, xl: "R&D Spend ($)", yl: "Profit ($)", label: "R&D 對 Profit 散佈圖" });
-  const L = M.deployed && M.deployed.line;
-  if (L) el("line", { x1: g.x(sx[0]), y1: g.y(L.intercept), x2: g.x(sx[1]), y2: g.y(L.intercept + L.slope * sx[1]), stroke: MONEY, "stroke-width": 2 }, g.svg);
-  D.scatter.forEach(p => el("circle", { cx: g.x(p[0]), cy: g.y(p[1]), r: 3.6, fill: INK, "fill-opacity": 0.75 }, g.svg));
-  $("scatterCap").textContent = L ? `R&D Spend 對 Profit。直線為最終部署模型：Profit ≈ ${usd(L.intercept)} + ${L.slope.toFixed(3)} × R&D。` : "R&D Spend 對 Profit。";
+  // ---------- 3 preparation ----------
+  $("stSelect").textContent = `刪除 ${P.dropped_rows_target} 列無目標值、刪除 BMI 欄`;
+  $("stLog").textContent = `${Object.keys(P.log_cols).length} 個偏態變數取 log；Status 轉 0/1`;
+  $("stSplit").textContent = `依國家 80/20：訓練 ${P.train_rows.toLocaleString()} 列、測試 ${P.test_rows} 列`;
+  $("stImpute").textContent = `補 ${P.imputed_cells.toLocaleString()} 格`;
+  $("testCountries").textContent = `測試集的 ${P.test_countries} 個國家：${P.test_country_list.join("、")}。`;
+  $("skew").innerHTML = Object.keys(P.log_cols).map(k => `<tr><td>${esc(k)}</td><td class="n">${f2(M.data.skew_before[k])}</td><td class="n">${f2(M.data.skew_after[P.log_cols[k]])}</td></tr>`).join("");
+  $("imputeList").innerHTML = [
+    `共補 ${P.imputed_cells.toLocaleString()} 個缺值。先用<b>同一國家其他年份的中位數</b>（${P.imputed_by_country.toLocaleString()} 格）：國家指標逐年變化不大，且只用該國自己的特徵值、不用目標值，沒有資料洩漏。`,
+    `該國完全沒有資料時，改用<b>訓練集的中位數</b>（${(P.imputed_cells - P.imputed_by_country).toLocaleString()} 格）；測試集的值不會影響補值用的數字。`,
+    "開發過程中的比較：最初只用訓練集中位數補值時，測試集 R² 為 0.813、預測區間涵蓋率 90.9%；改用同國中位數後，R² 提升到 0.850、涵蓋率 93.4%（更接近 95%）。"
+  ].map(t => `<li>${t}</li>`).join("");
 
-  // Heatmap
-  (function () {
-    const short = names.map(n => n.replace(" Spend", "").replace("Administration", "Admin").replace("Marketing", "Mkt"));
-    const W = 460, H = 300, l = 70, t = 10, c = 66, ox = (W - l - 4 * c) / 2;
-    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart", role: "img", "aria-label": "相關係數熱力圖" });
-    $("heatmap").replaceChildren(svg);
-    C.forEach((row, i) => {
-      el("text", { x: ox + l - 8, y: t + i * c + c / 2 + 4, "text-anchor": "end", class: "t-strong" }, svg, short[i]);
-      el("text", { x: ox + l + i * c + c / 2, y: t + 4 * c + 16, "text-anchor": "middle", class: "t-strong" }, svg, short[i]);
-      row.forEach((v, j) => {
-        el("rect", { x: ox + l + j * c + 1, y: t + i * c + 1, width: c - 2, height: c - 2, rx: 4, fill: v >= 0 ? INK : NEG, "fill-opacity": 0.08 + Math.abs(v) * 0.85 }, svg);
-        el("text", { x: ox + l + j * c + c / 2, y: t + i * c + c / 2 + 4, "text-anchor": "middle",
-          style: `fill:${Math.abs(v) > 0.55 ? "var(--surface)" : "var(--fg)"};font-size:12px;font-weight:600` }, svg, v.toFixed(2));
-      });
-    });
-  })();
+  // ---------- 4 modeling ----------
+  const vif = Object.entries(M.vif_all).sort((a, b) => b[1] - a[1]);
+  hbars("chVif", vif.map(([k, v]) => [k, Math.min(v, 30), v > 10 ? "var(--s5)" : v > 5 ? "var(--s3)" : "var(--s1)"]).map((r, i) => (r.vif = vif[i][1], r)), { label: "VIF", max: 30, lw: 230, f: v => v >= 30 ? "" : v.toFixed(1) });
+  vif.forEach(([k, v], i) => { if (v > 30) { const t = $("chVif").querySelectorAll("text"); t[i * 2 + 1].textContent = `${v.toFixed(0)}（超出刻度）`; } });
+  const PR = M.progressions, keys = Object.keys(PR), colors = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)", "var(--s5)"];
+  legend("legProg", keys.map((k, i) => ({ color: colors[i], label: PR[k].title })).concat([{ color: "var(--s3)", dot: true, label: `最終選擇 k = ${M.final.k}` }]));
+  const allR = keys.flatMap(k => PR[k].rows.map(r => r.test_rmse)), p = D.features.length;
+  g = frame("chProg", { x: [0.5, p + 0.5], y: domain(allR, 0.08), xt: [1, 3, 5, 7, 9, 11, 13, 15, 17, 19].filter(v => v <= p), xl: "特徵數 k", yl: "Test RMSE（歲）", yf: v => v.toFixed(1), label: "特徵數對 Test RMSE" });
+  keys.forEach((k, i) => {
+    const pts = PR[k].rows.map(r => [g.x(r.k), g.y(r.test_rmse)]);
+    el("polyline", { points: pts.map(q => q.join(",")).join(" "), fill: "none", stroke: colors[i], "stroke-width": 2 }, g.svg);
+    pts.forEach(q => el("circle", { cx: q[0], cy: q[1], r: 2.8, fill: colors[i] }, g.svg));
+  });
+  const finalKey = keys.find(k => PR[k].title === M.final.method), fr = PR[finalKey].rows[M.final.k - 1];
+  el("circle", { cx: g.x(fr.k), cy: g.y(fr.test_rmse), r: 7, fill: "none", stroke: "var(--s3)", "stroke-width": 2.5 }, g.svg);
+  const hit = el("rect", { x: g.m.l, y: g.m.t, width: g.W - g.m.l - g.m.r, height: g.H - g.m.t - g.m.b, fill: "transparent" }, g.svg);
+  bindTip(hit, e => { const r = g.svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * g.W, k = Math.min(p, Math.max(1, Math.round(0.5 + (px - g.m.l) / (g.W - g.m.l - g.m.r) * p))); return [`k = ${k}`, keys.map(kk => [f3(PR[kk].rows[k - 1].test_rmse) + " 歲", PR[kk].title])]; });
+  $("capProg").textContent = `各演算法只看訓練集、以「依國家分組」的 5-fold CV 選特徵；測試集只用來回報。${M.exhaustive_skipped ? `${p} 個特徵的窮舉搜尋需 ${(2 ** p - 1).toLocaleString()} 種組合，計算量過大，已略過。` : ""}`;
+  $("fsComp").innerHTML = M.feature_selection_comparison.map(r => `<tr${r.Method === M.final.method ? ' class="best"' : ""}><td>${esc(r.Method)}</td><td class="n">${r["k (CV best)"]}</td><td class="n">${r["k (1-SD)"]}</td><td>${chips(r["Selected Features (1-SD)"].split(", "))}</td><td class="n">${f3(r["CV RMSE (train)"])}</td><td class="n">${f3(r["Test RMSE"])}</td><td class="n">${f4(r["Test R-squared"])}</td></tr>`).join("");
+  $("finalNote").innerHTML = `CV RMSE 最低的是 ${esc(M.final.best_method)}（k = ${M.final.best_k}，${f3(M.final.best_cv_rmse)} ± ${f3(M.final.best_cv_sd)} 歲）。依 <b>1-SD 精簡原則</b>，在所有演算法中選「CV RMSE 落在最佳值一個標準差內、特徵數最少」的組合：<b>${esc(M.final.method)}，k = ${M.final.k}</b> → ${chips(M.final.features)}`;
+  $("models").innerHTML = M.models.map(m => `<tr${m.name.startsWith("OLS (selected") ? ' class="best"' : ""}><td>${esc(m.name)}</td><td class="n">${m.n_features}</td><td class="n">${f4(m.R2)}</td><td class="n">${f3(m.RMSE)}</td><td class="n">${f3(m.MAE)}</td><td class="n">${f2(m.MAPE_pct)}%</td><td class="n">${m.cv_r2_mean == null ? "—" : f4(m.cv_r2_mean) + " ± " + f3(m.cv_r2_std)}</td></tr>`).join("");
+  const CT = M.coef_table;
+  $("equation").textContent = "Life expectancy = " + coefF(CT[0].coef) + CT.slice(1).map(c => ` ${c.coef < 0 ? "−" : "+"} ${coefF(Math.abs(c.coef))} × ${c.name}`).join("");
+  $("coef").innerHTML = CT.map((c, i) => `<tr${i && c.p_cluster < 0.05 ? ' class="best"' : ""}><td class="mono">${esc(c.name === "const" ? "Intercept" : c.name)}</td><td class="n">${coefF(c.coef)}</td><td class="n">${coefF(c.se)}</td><td class="n">${fp(c.p)}</td><td class="n">[${coefF(c.ci_lo)}, ${coefF(c.ci_hi)}]</td><td class="n">${coefF(c.se_cluster)}</td><td class="n">${fp(c.p_cluster)}</td><td class="n">${i ? f3(M.std_beta[c.name]) : "—"}</td></tr>`).join("");
+  $("olsNote").textContent = `訓練集 n = ${M.ols.n}，R² = ${f4(M.ols.r2)}，調整後 R² = ${f4(M.ols.adj_r2)}，F = ${M.ols.F.toLocaleString()}（p < .001）。綠底為叢集穩健 p < .05。最終特徵的 VIF 最大 ${Math.max(...Object.values(M.vif_selected)).toFixed(2)}，沒有共線性問題。`;
 
-  // Histogram
-  const E = D.hist.edges, H_ = D.hist.counts, hmax = Math.ceil(Math.max(...H_) / 2) * 2 + 2;
-  g = frame("hist", { x: [0, sy[1]], y: [0, hmax], xl: "Profit ($)", yl: "家數", label: "Profit 分布直方圖", yf: String });
-  H_.forEach((n, i) => el("rect", { x: g.x(E[i]) + 1, y: g.y(n), width: g.x(E[i + 1]) - g.x(E[i]) - 2, height: g.y(0) - g.y(n), fill: i === 0 && D.outliers.length ? WARN : INK, "fill-opacity": 0.85 }, g.svg));
+  // ---------- 5 evaluation ----------
+  const tile = (label, big, sub, hero) => `<div class="tile${hero ? " hero" : ""}"><div class="eyebrow">${label}</div><div class="big">${big}</div><div class="sub">${sub}</div></div>`;
+  const full = M.models[0];
+  $("tiles").innerHTML = [tile("Test R²", f4(met.R2), `全部 ${full.n_features} 個特徵：${f4(full.R2)}`, true), tile("Test RMSE", f2(met.RMSE) + " 歲", `基準（只猜平均）：${f2(met.baseline_rmse)} 歲`, true),
+    tile("MAE", f2(met.MAE) + " 歲", `MAPE ${f2(met.MAPE_pct)}%`), tile("分組 CV R²", f3(met.cv_r2_mean), `± ${f3(met.cv_r2_std)}（訓練集 5 folds）`),
+    tile("95% 預測區間涵蓋率", (met.pi_coverage * 100).toFixed(1) + "%", "測試集實際值落在區間內的比例"), tile("特徵數", `${M.final.k} / ${D.features.length}`, "最終模型 / 全部候選")].join("");
 
-  // State means
-  (function () {
-    const rows = D.state_profit, ymax = Math.ceil(Math.max(...rows.map(r => r.mean + r.std)) / 25000) * 25000;
-    const g = frame("states", { x: [0, rows.length], y: [0, ymax], xl: "State（括號內為家數）", yl: "平均 Profit ($)", label: "各州平均利潤", xt: [] });
-    rows.forEach((r, i) => {
-      const cx = g.x(i + 0.5), bw = 56;
-      el("rect", { x: cx - bw / 2, y: g.y(r.mean), width: bw, height: g.y(0) - g.y(r.mean), rx: 3, fill: INK, "fill-opacity": 0.85 }, g.svg);
-      el("line", { x1: cx, x2: cx, y1: g.y(r.mean + r.std), y2: g.y(Math.max(0, r.mean - r.std)), stroke: FG, "stroke-width": 1.5 }, g.svg);
-      [r.mean + r.std, Math.max(0, r.mean - r.std)].forEach(v => el("line", { x1: cx - 8, x2: cx + 8, y1: g.y(v), y2: g.y(v), stroke: FG, "stroke-width": 1.5 }, g.svg));
-      el("text", { x: cx, y: g.H - g.m.b + 15, "text-anchor": "middle" }, g.svg, `${r.state} (${r.count})`);
-    });
-  })();
+  // prediction intervals on test set
+  const IP = [...M.interval_plot].sort((a, b) => a.pred - b.pred), n = IP.length;
+  legend("legPi", [{ color: "var(--ink-2)", label: "預測值" }, { color: "color-mix(in srgb, var(--ink) 45%, transparent)", band: true, label: "95% 信賴區間（平均值）" }, { color: "color-mix(in srgb, var(--ink) 18%, transparent)", band: true, label: "95% 預測區間（單一國家年份）" }, { color: "var(--s3)", dot: true, label: "實際值" }]);
+  g = frame("chPi", { w: 1000, h: 380, x: [-0.5, n - 0.5], y: domain(IP.flatMap(q => [q.pi_lo, q.pi_hi, q.actual]), 0.03), xt: [], xl: "測試集（37 個沒看過的國家，依預測值排序）", yl: "Life expectancy（歲）", label: "測試集預測值與區間" });
+  const band = (lo, hi) => IP.map((q, i) => `${g.x(i)},${g.y(q[hi])}`).join(" ") + " " + IP.map((q, i) => `${g.x(n - 1 - i)},${g.y(IP[n - 1 - i][lo])}`).join(" ");
+  el("polygon", { points: band("pi_lo", "pi_hi"), fill: "var(--ink)", "fill-opacity": 0.16 }, g.svg);
+  el("polygon", { points: band("ci_lo", "ci_hi"), fill: "var(--ink)", "fill-opacity": 0.45 }, g.svg);
+  el("polyline", { points: IP.map((q, i) => `${g.x(i)},${g.y(q.pred)}`).join(" "), fill: "none", stroke: "var(--ink-2)", "stroke-width": 2 }, g.svg);
+  IP.forEach((q, i) => el("circle", { cx: g.x(i), cy: g.y(q.actual), r: 2.3, fill: "var(--s3)", "fill-opacity": 0.85 }, g.svg));
+  const cross = el("line", { y1: g.m.t, y2: g.H - g.m.b, stroke: "var(--muted)", visibility: "hidden" }, g.svg);
+  const hit2 = el("rect", { x: g.m.l, y: g.m.t, width: g.W - g.m.l - g.m.r, height: g.H - g.m.t - g.m.b, fill: "transparent" }, g.svg);
+  bindTip(hit2, e => { const r = g.svg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * g.W, i = Math.min(n - 1, Math.max(0, Math.round(-0.5 + (px - g.m.l) / (g.W - g.m.l - g.m.r) * n))), q = IP[i];
+    cross.setAttribute("x1", g.x(i)); cross.setAttribute("x2", g.x(i)); cross.setAttribute("visibility", "visible");
+    return [`${q.country} ${q.year}`, [[f2(q.pred) + " 歲", "預測"], [f2(q.actual) + " 歲", "實際"], [`${f2(q.ci_lo)} – ${f2(q.ci_hi)}`, "95% 信賴區間"], [`${f2(q.pi_lo)} – ${f2(q.pi_hi)}`, "95% 預測區間"]]]; });
+  hit2.addEventListener("pointerleave", () => cross.setAttribute("visibility", "hidden"));
+  $("capPi").textContent = `以訓練集擬合最終模型，對 ${n} 筆測試資料預測。深色帶是平均值的 95% 信賴區間（很窄，因為訓練資料多）；淺色帶是單一國家年份的 95% 預測區間（寬約 ${f2(IP.reduce((s, q) => s + (q.pi_hi - q.pi_lo), 0) / n)} 歲）。實際值有 ${(met.pi_coverage * 100).toFixed(1)}% 落在預測區間內，略低於 95%，與殘差的異質變異和國家內相關一致。`;
 
-  // 3.6 feature selection
-  const FS = M.feature_selection;
-  $("fsEyebrow").textContent = `Phase 3 · Feature selection analysis（只用訓練集 ${M.settings.n_train} 筆）`;
-  $("fsBody").innerHTML = FS.map(r => `<tr${r.rfe_rank === 1 ? ' class="best"' : ""}><td>${esc(r.feature)}</td><td class="n">${r.pearson_r.toFixed(3)}</td><td class="n">${r.f_score.toFixed(2)}</td><td class="n">#${r.rfe_rank}</td><td class="n">${Math.abs(r.lasso_coef) < 1e-6 ? "0（剔除）" : r.lasso_coef.toLocaleString("en-US", { maximumFractionDigits: 1 })}</td><td class="n">${r.rf_importance_pct.toFixed(2)}%</td></tr>`).join("");
-  const fsTop = FS.reduce((a, b) => (a.f_score > b.f_score ? a : b));
-  hbars("rfBars", [...FS].sort((a, b) => b.rf_importance_pct - a.rf_importance_pct).map(r => [r.feature, r.rf_importance_pct, r === fsTop ? MONEY : INK]), { label: "Random Forest 特徵重要度", max: 100, lw: 120, f: v => v.toFixed(2) + "%" });
-  const zeroed = FS.filter(r => Math.abs(r.lasso_coef) < 1e-6).map(r => r.feature);
-  const weak = FS.filter(r => r.rf_importance_pct < 1);
-  $("fsConclusion").innerHTML = `五種方法一致：<b>${esc(fsTop.feature)} 壓倒性地重要</b>（F-score ${fsTop.f_score.toFixed(2)}，RF 重要度 ${fsTop.rf_importance_pct.toFixed(1)}%）。` +
-    (zeroed.length ? `Lasso 把 ${esc(zeroed.join("、"))} 的係數壓到 0；` : "") +
-    (weak.length ? `${esc(weak.map(r => r.feature).join("、"))} 的 RF 重要度合計只有 ${weak.reduce((s, r) => s + r.rf_importance_pct, 0).toFixed(2)}%。` : "");
+  // simple linear regression with bands
+  const SL = M.simple_lr;
+  $("slrTitle").textContent = `單純線性迴歸：Life expectancy ~ ${SL.feature}（含 95% 信賴區間與預測區間）`;
+  legend("legSlr", [{ color: "var(--s1)", dot: true, label: "訓練集" }, { color: "var(--s3)", dot: true, label: "測試集" }, { color: "var(--ink-2)", label: `迴歸線（R² = ${f3(SL.r2)}）` }, { color: "color-mix(in srgb, var(--ink) 45%, transparent)", band: true, label: "95% 信賴區間" }, { color: "color-mix(in srgb, var(--ink) 18%, transparent)", band: true, label: "95% 預測區間" }]);
+  const xsAll = SL.train_points.map(q => q[0]).concat(SL.test_points.map(q => q[0])), ysAll = SL.train_points.map(q => q[1]).concat(SL.test_points.map(q => q[1]), SL.grid.flatMap(q => [q.pi_lo, q.pi_hi]));
+  g = frame("chSlr", { w: 1000, h: 400, x: domain(xsAll, 0.02), y: domain(ysAll, 0.03), xl: SL.feature, yl: "Life expectancy（歲）", xf: v => (+v.toFixed(2)).toString(), label: "單純線性迴歸與區間" });
+  const sb = (lo, hi) => SL.grid.map(q => `${g.x(q.x)},${g.y(q[hi])}`).join(" ") + " " + [...SL.grid].reverse().map(q => `${g.x(q.x)},${g.y(q[lo])}`).join(" ");
+  el("polygon", { points: sb("pi_lo", "pi_hi"), fill: "var(--ink)", "fill-opacity": 0.14 }, g.svg);
+  SL.train_points.forEach(q => el("circle", { cx: g.x(q[0]), cy: g.y(q[1]), r: 1.8, fill: "var(--s1)", "fill-opacity": 0.4 }, g.svg));
+  SL.test_points.forEach(q => el("circle", { cx: g.x(q[0]), cy: g.y(q[1]), r: 2, fill: "var(--s3)", "fill-opacity": 0.7 }, g.svg));
+  el("polygon", { points: sb("ci_lo", "ci_hi"), fill: "var(--ink)", "fill-opacity": 0.45 }, g.svg);
+  el("polyline", { points: SL.grid.map(q => `${g.x(q.x)},${g.y(q.pred)}`).join(" "), fill: "none", stroke: "var(--ink-2)", "stroke-width": 2.5 }, g.svg);
+  $("capSlr").textContent = `只用一個特徵時：Life expectancy = ${f2(SL.intercept)} + ${f2(SL.slope)} × ${SL.feature}，R² = ${f3(SL.r2)}。加入其他 ${M.final.k - 1} 個特徵後，測試集 R² 提升到 ${f3(met.R2)}。`;
 
-  // Phase 4
-  const vifs = Object.entries(M.vif), vifOk = vifs.every(([, v]) => v <= 10);
-  $("vifLine").innerHTML = `多重共線性 VIF：${vifs.map(([k, v]) => `${esc(k.replace(" Spend", ""))} <span class="num">${v.toFixed(2)}</span>`).join("、")} <span class="pill ${vifOk ? "pass" : "warn"}">${vifOk ? "OK（皆 ≤ 10）" : "> 10"}</span>`;
-  const ss = M.subset_search, bestS = ss[0], selS = ss.find(s => s.features.join() === sel.join());
-  $("selection").innerHTML = `<li>${Math.round((1 - M.settings.test_size) * 100)}/${Math.round(M.settings.test_size * 100)} hold-out，訓練集上做 5-fold 交叉驗證</li><li>4 個原始特徵的全部 ${ss.length} 種組合都訓練一次</li><li>CV R² 最高：${chips(bestS.features)}（<span class="num">${bestS.cv_r2_mean.toFixed(4)}</span>）</li>` +
-    (selS && selS !== bestS ? `<li>1-SD 精簡原則：改選 ${chips(sel)}（<span class="num">${selS.cv_r2_mean.toFixed(4)}</span>），與最佳差距在一個標準差內，選特徵最少的</li>` : `<li>最終選定 ${chips(sel)}</li>`);
+  const AZ = ["線性（Ramsey RESET）", "同質變異（Breusch-Pagan）", "殘差常態（Jarque-Bera）", "誤差獨立（Durbin-Watson，依國家／年份排序）", "無共線性（最大 VIF）", "影響點（Cook's D > 4/n 的筆數）"];
+  $("assume").innerHTML = M.assumptions.map((a, ai) => `<tr><td>${esc(AZ[ai] || a.name)}</td><td class="n">${typeof a.stat === "number" ? (Number.isInteger(a.stat) ? a.stat : a.stat.toFixed(3)) : "—"}</td><td class="n">${fp(a.p)}</td><td>${a.pass == null ? '<span class="pill">參考</span>' : pill(a.pass, "通過", "未通過")}</td></tr>`).join("");
+  const critVals = [f4(met.R2), f2(met.RMSE) + " 歲", f4(met.cv_r2_mean)];
+  const CZ = [`測試集 R² ≥ ${sc.test_R2_min}`, `測試集 RMSE ≤ ${sc.test_RMSE_max} 歲`, `分組 CV R² ≥ ${sc.cv_R2_min}`];
+  $("crit").innerHTML = M.success_criteria.map((c, i) => `<tr><td>${esc(CZ[i] || c.name)}</td><td class="n">${critVals[i]}</td><td>${pill(c.passed)}</td></tr>`).join("");
+  const reviewZh = ["依國家切分，沒有國家同時在訓練與測試集", "補值的後備中位數只用訓練集計算", "特徵選擇只用訓練集的分組交叉驗證", "最終模型優於只猜平均的基準"];
+  $("review").innerHTML = M.process_review.map((c, i) => `<li>${pill(c.ok, "OK", "ISSUE")} ${esc(reviewZh[i] || c.name)}</li>`).join("");
+  $("decision").innerHTML = M.approved ? `<span class="pill pass">APPROVED</span> 三項成功標準都通過，進入 Phase 6。5.3 下一步：假設檢定未全部通過，未來可嘗試交互作用項、非線性轉換或混合效果模型（考慮國家內相關）。` : `<span class="pill warn">NOT APPROVED</span> ${esc(M.next_steps)}`;
+  const sb3 = Object.entries(M.std_beta).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  const up = sb3.filter(([, v]) => v > 0).map(([k]) => k), down = sb3.filter(([, v]) => v < 0).map(([k]) => k);
+  const ciHalf = IP.reduce((s, q) => s + (q.ci_hi - q.ci_lo) / 2, 0) / n, piHalf = IP.reduce((s, q) => s + (q.pi_hi - q.pi_lo) / 2, 0) / n;
+  $("answers").innerHTML = [
+    `<b>哪些指標最重要？</b>依標準化係數：${sb3.map(([k, v]) => `${esc(k)}（${v > 0 ? "+" : ""}${f3(v)}）`).join("、")}。${esc(up.join("、"))} 越高，${esc(down.join("、"))} 越低，平均壽命越高。`,
+    `<b>對沒看過的國家能預測多準？</b>RMSE ${f2(met.RMSE)} 歲、MAE ${f2(met.MAE)} 歲、R² ${f3(met.R2)}，遠優於只猜平均的 ${f2(met.baseline_rmse)} 歲。`,
+    `<b>單一預測的不確定性？</b>單一國家年份的 95% 預測區間平均約 ±${f2(piHalf)} 歲；平均值的 95% 信賴區間只有約 ±${f2(ciHalf)} 歲。`,
+  ].map(t => `<li>${t}</li>`).join("");
 
-  // 5 algorithms
-  const P = M.progressions, keys = Object.keys(P);
-  $("algoLegend").innerHTML = keys.map((k, i) => `<span><i style="background:${SERIES[i]}"></i>${esc(P[k].title)}</span>`).join("");
-  const allR = keys.flatMap(k => P[k].rows.map(r => r.test_rmse)), kMax = Math.max(...keys.flatMap(k => P[k].rows.map(r => r.k)));
-  const yr = niceRange(allR, 0.05);
-  g = frame("algoChart", { x: [0.6, kMax + 0.4], y: yr, xt: [...Array(kMax).keys()].map(i => i + 1), xf: String, yf: v => v.toLocaleString("en-US"), xl: "Number of Features", yl: "Test RMSE ($)", label: "5 種演算法的 Test RMSE", h: 300 });
-  keys.forEach((k, i) => line(g, P[k].rows.map(r => [r.k, r.test_rmse]), SERIES[i], { dx: (i - 2) * 3, r: 4, op: 0.9 }));
+  // ---------- 6 deployment ----------
+  $("examples").innerHTML = M.example_predictions.map(e => `<tr><td>${esc(e.country)} ${e.year}</td><td class="n">${f2(e.actual)}</td><td class="n">${f2(e.prediction)}</td><td class="n">${f2(e.pi_lower)} – ${f2(e.pi_upper)}</td></tr>`).join("");
+  $("monitor").innerHTML = ["WHO 公布新一年的指標時重新預測，並與實際公布的平均壽命比對。", "每年重新訓練；新年度的滾動 RMSE 超過 5 歲時立即重訓。", "輸入超出訓練資料範圍時發出警示（data drift）。", "定期檢查預測區間的涵蓋率是否維持在 95% 左右。"].map(t => `<li>${t}</li>`).join("");
 
-  let current = keys[0];
-  function renderTab() {
-    $("algoTabs").querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.k === current)));
-    const rows = P[current].rows, bestCv = Math.min(...rows.map(r => r.cv_rmse));
-    $("algoBody").innerHTML = rows.map(r => `<tr${r.cv_rmse === bestCv ? ' class="best"' : ""}><td class="n">${r.k}</td><td>${chips(r.features)}</td><td class="n">${n2(r.cv_rmse)}</td><td class="n">${n2(r.test_rmse)}</td><td class="n">${r.test_r2.toFixed(4)}</td></tr>`).join("");
-  }
-  $("algoTabs").innerHTML = keys.map((k, i) => `<button type="button" role="tab" id="tab-${k}" data-k="${k}"><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SERIES[i]};margin-right:6px"></i>${esc(P[k].title)}</button>`).join("");
-  $("algoTabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) { current = b.dataset.k; renderTab(); } });
-  renderTab();
-
-  const CMP = M.feature_selection_comparison;
-  $("compBody").innerHTML = CMP.map(r => `<tr><td>${esc(r.Method)}</td><td class="n">${r["Best Number of Features"]}</td><td>${chips(r["Selected Features"].split(", "))}</td><td class="n">${n2(r["CV RMSE (train)"])}</td><td class="n">${n2(r["Test RMSE"])}</td><td class="n">${r["Test R-squared"].toFixed(4)}</td></tr>`).join("");
-  const isMin = met.selected.RMSE <= Math.min(...allR) + 0.01;
-  $("compNote").innerHTML = `只看 CV RMSE 最低，多數演算法會選較多特徵，但差距很小。Phase 4 依 1-SD 精簡原則（以 CV R² 判斷）選特徵最少的模型：${chips(sel)}` +
-    (isMin ? `，它的 Test RMSE（${usd(met.selected.RMSE, 2)}）也是上圖所有組合中最低的。` : "。");
-
-  // Phase 5
-  const S = met.selected, F = met.full;
-  const tiles = [
-    ["Test R²", S.R2.toFixed(4), `選定模型（${sel.join(" + ")}）`, true],
-    ["Test RMSE", usd(S.RMSE), `完整模型 ${usd(F.RMSE)}`, true],
-    ["MAE", usd(S.MAE), `完整模型 ${usd(F.MAE)}`],
-    ["MAPE", S.MAPE_pct.toFixed(2) + "%", `完整模型 ${F.MAPE_pct.toFixed(2)}%`],
-    ["5-fold CV R²", met.cv_r2_mean.toFixed(3), `± ${met.cv_r2_std.toFixed(3)}（全部資料）`],
-    ["Baseline RMSE", usd(met.baseline_rmse), "只猜訓練集平均"],
-  ];
-  $("tiles").innerHTML = tiles.map(t => `<div class="tile${t[3] ? " hero" : ""}"><div class="eyebrow">${t[0]}</div><div class="big">${t[1]}</div><div class="sub">${esc(t[2])}</div></div>`).join("");
-  const critVals = [S.R2.toFixed(4), met.cv_r2_mean.toFixed(4), S.MAPE_pct.toFixed(2) + "%"];
-  $("critBody").innerHTML = M.success_criteria.map((c, i) => `<tr><td>${esc(c.name)}</td><td class="n">${critVals[i] || ""}</td><td><span class="pill ${c.passed ? "pass" : "warn"}">${c.passed ? "PASS" : "FAIL"}</span></td></tr>`).join("");
-  const fullFails = [F.R2 < sc.test_R2_min ? `R² ${F.R2.toFixed(4)}` : null, F.MAPE_pct > sc.MAPE_max_pct ? `MAPE ${F.MAPE_pct.toFixed(2)}%` : null].filter(Boolean);
-  $("fullNote").textContent = fullFails.length ? `對照：完整模型（全部特徵）${fullFails.join("、")}，不合格。精簡模型反而更好。` : `對照：完整模型 R² ${F.R2.toFixed(4)}、MAPE ${F.MAPE_pct.toFixed(2)}%。`;
-  const reviewZh = { "Test set touched only after model selection": "測試集在選完模型後才使用", "Scaler/encoder fitted inside pipeline (no leakage)": "編碼與標準化都在 Pipeline 內，沒有資料洩漏", "Multicollinearity acceptable (all VIF <= 10)": "多重共線性可接受（VIF 皆 ≤ 10）", "Model beats naive baseline RMSE": "RMSE 低於 baseline" };
-  $("review").innerHTML = M.process_review.map(c => `<li><span class="pill ${c.ok ? "pass" : "warn"}">${c.ok ? "OK" : "ISSUE"}</span> ${esc(reviewZh[c.name] || c.name)}</li>`).join("");
-  $("review").querySelectorAll("li").forEach(li => li.style.paddingLeft = "0");
-  $("decision").innerHTML = M.approved ? `<span class="pill pass">APPROVED</span> 進入 Phase 6 部署。` : `<span class="pill warn">NOT APPROVED</span> ${esc(M.next_steps)}`;
-
-  const A = M.actual_vs_pred, av = A.flat(), lo = Math.floor(Math.min(...av) / 25000) * 25000, hi = Math.ceil(Math.max(...av) / 25000) * 25000;
-  g = frame("avp", { x: [lo, hi], y: [lo, hi], xl: "Actual Profit ($)", yl: "Predicted Profit ($)", label: "實際值對預測值" });
-  el("line", { x1: g.x(lo), y1: g.y(lo), x2: g.x(hi), y2: g.y(hi), stroke: MUTED, "stroke-dasharray": "5 4" }, g.svg);
-  A.forEach(p => el("circle", { cx: g.x(p[0]), cy: g.y(p[1]), r: 5, fill: MONEY, "fill-opacity": 0.85 }, g.svg));
-  $("avpCap").textContent = `測試集 ${A.length} 筆：實際值對預測值。虛線為完美預測 y = x。`;
-
-  const stateIn = sel.includes("State");
-  $("answers").innerHTML = `<li><b>哪項支出最影響利潤？</b>${esc(fsTop.feature)}。${L ? `每多投入 $1，利潤平均多約 $${L.slope.toFixed(2)}。` : ""}</li><li><b>州別有影響嗎？</b>${stateIn ? "有，最終模型保留 State。" : "沒有明顯影響，最終模型不含 State。"}</li><li><b>能預測多準？</b>典型誤差（MAE）約 ${usd(Math.round(S.MAE / 100) * 100)}，平均誤差約 ${S.MAPE_pct.toFixed(1)}%。</li>`;
-
-  // Phase 6
-  $("exBody").innerHTML = M.example_predictions.length ? M.example_predictions.map(e => `<tr><td class="num">${e["R&D Spend"].toLocaleString("en-US")}</td><td class="num">${e["Administration"].toLocaleString("en-US")}</td><td class="num">${e["Marketing Spend"].toLocaleString("en-US")}</td><td>${esc(e.State)}</td><td class="n"><b>${usd(e["Predicted Profit"])}</b></td></tr>`).join("") : `<tr><td colspan="5">模型未通過評估，沒有部署。</td></tr>`;
-  $("exNote").textContent = M.deployed ? `部署模型只用 ${M.deployed.features.join("、")}，其他欄位會被忽略。` : "";
-
-  // Takeaways
+  // ---------- takeaways ----------
   const tk = [
-    [`${fsTop.feature} 是主導因素`, `r = ${fsTop.pearson_r.toFixed(3)}，F-score ${fsTop.f_score.toFixed(0)}，RF 重要度 ${fsTop.rf_importance_pct.toFixed(0)}%`],
-    ["Admin 與 State 幾乎無用", zeroed.length ? `Lasso 把 ${zeroed.join("、")} 壓到 0` : "相關係數與重要度都很低"],
-    ["少即是多", `${sel.length} 個特徵的模型 R² ${S.R2.toFixed(3)}，勝過全部特徵的 ${F.R2.toFixed(3)}`],
-    [M.success_criteria.every(c => c.passed) ? "成功標準全數通過" : "部分成功標準未通過", `R² ${S.R2.toFixed(3)}、CV R² ${met.cv_r2_mean.toFixed(3)}、MAPE ${S.MAPE_pct.toFixed(1)}%`],
-    [M.approved ? "可部署" : "暫不部署", M.approved ? "Pipeline 以 joblib 儲存，附監控計畫" : "回到 Phase 3/4 修正"],
+    [`R² ${f3(met.R2)}`, `只用 ${M.final.k} 個特徵，就能在 ${P.test_countries} 個沒看過的國家上解釋 ${(met.R2 * 100).toFixed(0)}% 的平均壽命差異`],
+    ["依國家切分", "避免同一國家同時出現在訓練與測試集，評估結果更可信"],
+    ["資料清理是關鍵", `BMI 欄 48% 不合理而刪除；同國中位數補值讓 R² 從 0.813 提升到 ${f3(met.R2)}`],
+    ["誠實面對假設", "殘差有異質變異與國家內相關，因此改用叢集穩健標準誤做推論"],
+    ["附預測區間", `單一預測約 ±${f2(piHalf)} 歲，${(met.pi_coverage * 100).toFixed(0)}% 實際值落在 95% 預測區間內`],
   ];
   $("takeaways").innerHTML = tk.map(t => `<div><b>${esc(t[0])}</b><p>${esc(t[1])}</p></div>`).join("");
 })();

@@ -2,241 +2,354 @@
 ======================================================================
 PHASE 1: BUSINESS UNDERSTANDING
 ======================================================================
-objective: Help a venture capital fund estimate a startup's annual profit from its spending profile and location.
-business_questions: ['Which spending category (R&D, Administration, Marketing) drives profit most?', 'Does the state where the startup operates affect profit?', 'How accurately can profit be predicted for a new startup?']
-data_mining_goal: Build a multiple linear regression model Profit = f(R&D, Admin, Marketing, State).
-success_criteria: {'test_R2_min': 0.9, 'cv_R2_min': 0.85, 'MAPE_max_pct': 10.0}
+objective: Help health policy analysts estimate a country's life expectancy from health, economic and social indicators, and identify which indicators matter most.
+business_questions: ['Which indicators are most strongly associated with life expectancy?', 'How accurately can life expectancy be predicted for a country the model has never seen?', 'How uncertain is a single prediction (prediction interval)?']
+data_mining_goal: Multiple linear regression: Life expectancy = f(indicators), with feature selection, evaluated on unseen countries.
+success_criteria: {'test_R2_min': 0.8, 'test_RMSE_max': 4.5, 'cv_R2_min': 0.75}
 
 --- 1.2 Situation assessment ---
-resources: One public CSV (50 rows), Python + scikit-learn.
-assumptions: Spend figures are annual and comparable across startups.
-constraints: Tiny sample -> no deep models; must stay interpretable.
-risks: ['Small sample -> unstable estimates (mitigate: cross-validation).', 'Zero spend values may be missing data rather than true zeros.']
-cost_benefit: Cheap to build; wrong predictions cost the fund money, so the model supports, not replaces, analyst judgment.
+resources: One public Kaggle CSV (2,938 rows, 22 columns), Python with scikit-learn and statsmodels.
+assumptions: Indicators are comparable across countries and years.
+constraints: The model must stay interpretable (linear) for policy discussion.
+risks: ['Many missing values (44% of rows have at least one).', 'Implausible values (e.g. average BMI above 50) indicate data-entry errors.', 'Each country appears up to 16 times; a random split would leak the same country into training and testing.']
+cost_benefit: Cheap to build; useful for prioritising health spending, but associations are not causal effects.
 
 --- 1.4 Project plan ---
- - Phase 2: profile data, correlations, quality checks
- - Phase 3: clean, encode State, split train/test
- - Phase 4: OLS on every feature subset, choose by CV R2
- - Phase 5: test-set metrics vs success criteria, decide go/no-go
- - Phase 6: deploy only if approved; write final report
+ - Phase 2: profile data, missing values, implausible values, correlations
+ - Phase 3: clean, log-transform skewed variables, split by country, impute (same-country median, then training median)
+ - Phase 4: VIF, feature selection (Lasso, Forward SFS, RFE, ElasticNet), OLS / Ridge / Lasso
+ - Phase 5: test metrics vs success criteria, assumption checks, prediction intervals
+ - Phase 6: deploy only if approved; save model and report
 
 ======================================================================
 PHASE 2: DATA UNDERSTANDING
 ======================================================================
-Loaded /Users/taemi/Desktop/AIOT-week5/50_Startups.csv: 50 rows x 5 columns
+Loaded LifeExpectancy_WHO.csv: 2938 rows x 22 columns
+Source: https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who
+Candidate features (20): ['Year', 'Status', 'Adult Mortality', 'infant deaths', 'Alcohol', 'percentage expenditure', 'Hepatitis B', 'Measles', 'BMI', 'under-five deaths', 'Polio', 'Total expenditure', 'Diphtheria', 'HIV/AIDS', 'GDP', 'Population', 'thinness 1-19 years', 'thinness 5-9 years', 'Income composition of resources', 'Schooling']
 
 --- Head ---
-   R&D Spend  Administration  Marketing Spend       State     Profit
-0  165349.20       136897.80        471784.10    New York  192261.83
-1  162597.70       151377.59        443898.53  California  191792.06
-2  153441.51       101145.55        407934.54     Florida  191050.39
-3  144372.41       118671.85        383199.62    New York  182901.99
-4  142107.34        91391.77        366168.42     Florida  166187.94
+       Country  Year  ... Income composition of resources  Schooling
+0  Afghanistan  2015  ...                           0.479       10.1
+1  Afghanistan  2014  ...                           0.476       10.0
+2  Afghanistan  2013  ...                           0.470        9.9
+3  Afghanistan  2012  ...                           0.463        9.8
+4  Afghanistan  2011  ...                           0.454        9.5
 
---- Data types ---
-R&D Spend          float64
-Administration     float64
-Marketing Spend    float64
-State                  str
-Profit             float64
-dtype: object
+[5 rows x 22 columns]
 
 --- Descriptive statistics ---
-                 count         mean  ...          75%        max
-R&D Spend         50.0   73721.6156  ...  101602.8000  165349.20
-Administration    50.0  121344.6396  ...  144842.1800  182645.56
-Marketing Spend   50.0  211025.0978  ...  299469.0850  471784.10
-Profit            50.0  112012.6392  ...  139765.9775  192261.83
+                                  count         mean  ...         75%           max
+Year                             2938.0      2007.52  ...     2012.00  2.015000e+03
+Life expectancy                  2928.0        69.22  ...       75.70  8.900000e+01
+Adult Mortality                  2928.0       164.80  ...      228.00  7.230000e+02
+infant deaths                    2938.0        30.30  ...       22.00  1.800000e+03
+Alcohol                          2744.0         4.60  ...        7.70  1.787000e+01
+percentage expenditure           2938.0       738.25  ...      441.53  1.947991e+04
+Hepatitis B                      2385.0        80.94  ...       97.00  9.900000e+01
+Measles                          2938.0      2419.59  ...      360.25  2.121830e+05
+BMI                              2904.0        38.32  ...       56.20  8.730000e+01
+under-five deaths                2938.0        42.04  ...       28.00  2.500000e+03
+Polio                            2919.0        82.55  ...       97.00  9.900000e+01
+Total expenditure                2712.0         5.94  ...        7.49  1.760000e+01
+Diphtheria                       2919.0        82.32  ...       97.00  9.900000e+01
+HIV/AIDS                         2938.0         1.74  ...        0.80  5.060000e+01
+GDP                              2490.0      7483.16  ...     5910.81  1.191727e+05
+Population                       2286.0  12753375.12  ...  7420359.00  1.293859e+09
+thinness 1-19 years              2904.0         4.84  ...        7.20  2.770000e+01
+thinness 5-9 years               2904.0         4.87  ...        7.20  2.860000e+01
+Income composition of resources  2771.0         0.63  ...        0.78  9.500000e-01
+Schooling                        2775.0        11.99  ...       14.30  2.070000e+01
 
-[4 rows x 8 columns]
+[20 rows x 8 columns]
 
---- State frequency ---
-State
-New York      17
-California    17
-Florida       16
-Name: count, dtype: int64
+Countries: 193, years 2000-2015
+Status: {'Developing': 2426, 'Developed': 512}
 
---- Correlation matrix ---
-                 R&D Spend  Administration  Marketing Spend  Profit
-R&D Spend            1.000           0.242            0.724   0.973
-Administration       0.242           1.000           -0.032   0.201
-Marketing Spend      0.724          -0.032            1.000   0.748
-Profit               0.973           0.201            0.748   1.000
+--- Correlation with life expectancy ---
+Adult Mortality                   -0.696
+HIV/AIDS                          -0.557
+thinness 1-19 years               -0.477
+thinness 5-9 years                -0.472
+under-five deaths                 -0.223
+infant deaths                     -0.197
+Measles                           -0.158
+Population                        -0.022
+Year                               0.170
+Total expenditure                  0.218
+Hepatitis B                        0.257
+percentage expenditure             0.382
+Alcohol                            0.405
+GDP                                0.461
+Polio                              0.466
+Diphtheria                         0.479
+BMI                                0.568
+Income composition of resources    0.725
+Schooling                          0.752
+Name: Life expectancy, dtype: float64
 
---- Correlation with Profit (sorted) ---
-R&D Spend          0.973
-Marketing Spend    0.748
-Administration     0.201
-Name: Profit, dtype: float64
-
---- Mean profit by State ---
-                mean      std  count
-State                               
-California  103905.2  44446.4     17
-Florida     118774.0  35605.5     16
-New York    113756.4  41140.3     17
-
---- Data quality ---
-Missing values per column:
- R&D Spend          0
-Administration     0
-Marketing Spend    0
-State              0
-Profit             0
+--- Missing values ---
+Population                         652
+Hepatitis B                        553
+GDP                                448
+Total expenditure                  226
+Alcohol                            194
+Income composition of resources    167
+Schooling                          163
+BMI                                 34
+thinness 1-19 years                 34
+thinness 5-9 years                  34
+Polio                               19
+Diphtheria                          19
+Life expectancy                     10
+Adult Mortality                     10
 dtype: int64
+Rows with any missing value: 1289 (43.9%)
 Duplicate rows: 0
-Zero values per numeric column (possible missing data):
- R&D Spend          2
-Administration     0
-Marketing Spend    3
-dtype: int64
-Profit outliers (IQR rule): 1
-    R&D Spend  Administration  Marketing Spend       State   Profit
-49        0.0        116983.8         45173.06  California  14681.4
+
+--- Implausible / problematic values ---
+BMI below 10 or above 50 (not a plausible national average)   1422 (48.4%) -> Drop the BMI column (too many wrong values to impute)
+Schooling = 0 years                                             28 ( 1.0%) -> Treat as missing, impute
+Income composition of resources = 0                            130 ( 4.4%) -> Treat as missing, impute
+Percentage expenditure = 0                                     611 (20.8%) -> Treat as missing, impute
+Life expectancy missing (target)                                10 ( 0.3%) -> Drop row
+
+--- Skewness (will be log-transformed) ---
+Population                15.92
+infant deaths              9.79
+under-five deaths          9.50
+Measles                    9.44
+HIV/AIDS                   5.40
+percentage expenditure     4.65
+GDP                        3.21
+dtype: float64
 
 ======================================================================
 PHASE 3: DATA PREPARATION
 ======================================================================
-Rows after removing duplicates/NaN: 50 (removed 0)
-Train: (40, 4), Test: (10, 4)
-
---- 3.6 Feature selection analysis (training data) ---
-                 pearson_r  f_score  rfe_rank  lasso_coef  rf_importance_pct
-R&D Spend            0.973  676.103         1   37233.564             92.682
-Marketing Spend      0.774   56.691         2    3547.658              6.346
-State_New York       0.105    0.424         5      -0.000              0.120
-State_Florida        0.095    0.350         4       0.000              0.172
-Administration       0.090    0.312         3   -1061.177              0.679
+Dropped 10 rows without target and the BMI column -> (2928, 21)
+Log-transformed: ['Population', 'infant deaths', 'under-five deaths', 'Measles', 'HIV/AIDS', 'percentage expenditure', 'GDP']
+Skewness after log: {'log Population': -0.55, 'log infant deaths': 0.7, 'log under-five deaths': 0.64, 'log Measles': 0.55, 'log HIV/AIDS': 2.12, 'log percentage expenditure': 0.06, 'log GDP': -0.14}
+Final candidate features (19): ['Year', 'Adult Mortality', 'Alcohol', 'Hepatitis B', 'Polio', 'Total expenditure', 'Diphtheria', 'thinness 1-19 years', 'thinness 5-9 years', 'Income composition of resources', 'Schooling', 'log Population', 'log infant deaths', 'log under-five deaths', 'log Measles', 'log HIV/AIDS', 'log percentage expenditure', 'log GDP', 'Status_Developing']
+Train: 2336 rows / 146 countries; Test: 592 rows / 37 countries (no overlap)
+Imputed 3243 missing cells: 1211 from the same country's median, 2032 from training-set medians
+Prepared data saved to datasets/who_prepared.csv
 
 ======================================================================
 PHASE 4: MODELING
 ======================================================================
---- 4.1 Multicollinearity check (VIF, training data) ---
-R&D Spend          2.57
-Administration     1.15
-Marketing Spend    2.54
+--- 4.1 VIF (all candidate features, training data) ---
+log under-five deaths              203.76
+log infant deaths                  193.64
+Income composition of resources     10.92
+log percentage expenditure           7.89
+log GDP                              7.76
+thinness 5-9 years                   7.73
+thinness 1-19 years                  7.64
+Schooling                            7.41
+Diphtheria                           2.42
+log HIV/AIDS                         2.31
+Polio                                2.23
+Alcohol                              1.90
+Adult Mortality                      1.89
+log Measles                          1.82
+Status_Developing                    1.79
+Hepatitis B                          1.61
+log Population                       1.28
+Total expenditure                    1.27
+Year                                 1.13
 dtype: float64
-VIF > 10 would mean coefficients are unreliable: none
---- Feature subsets ranked by 5-fold CV R2 (training data) ---
-                                               features  n_features  cv_r2_mean  cv_r2_std
-0                          (R&D Spend, Marketing Spend)           2      0.9416     0.0265
-1          (R&D Spend, Administration, Marketing Spend)           3      0.9399     0.0308
-2                           (R&D Spend, Administration)           2      0.9390     0.0318
-3                                          (R&D Spend,)           1      0.9384     0.0284
-4                   (R&D Spend, Marketing Spend, State)           3      0.9364     0.0265
-5   (R&D Spend, Administration, Marketing Spend, State)           4      0.9340     0.0323
-6                    (R&D Spend, Administration, State)           3      0.9338     0.0302
-7                                    (R&D Spend, State)           2      0.9326     0.0232
-8                     (Administration, Marketing Spend)           2      0.3748     0.6354
-9                                    (Marketing Spend,)           1      0.3143     0.7168
-10             (Administration, Marketing Spend, State)           3      0.2565     0.7405
-11                             (Marketing Spend, State)           2      0.2214     0.8258
-12                                    (Administration,)           1     -0.3294     0.3518
-13                                             (State,)           1     -0.6087     0.9452
-14                              (Administration, State)           2     -0.7544     1.1912
 
-Best CV subset : ['R&D Spend', 'Marketing Spend'] (R2=0.9416)
-Selected (1-SD parsimony rule): ['R&D Spend'] (R2=0.9384)
-
---- Feature progression analysis (5 algorithms) ---
+--- Feature progression (selection algorithms) ---
 
 --- Lasso (L1 Ranking) ---
- Number of Features                                                         Selected Features  CV RMSE (train)  Test RMSE  Test R-squared
-                  1                                                                 R&D Spend        9406.5787  7714.3349          0.9265
-                  2                                                R&D Spend, Marketing Spend        9186.6804  8206.3288          0.9168
-                  3                                R&D Spend, Marketing Spend, Administration        9104.6812  8995.9058          0.9001
-                  4                 R&D Spend, Marketing Spend, Administration, State_Florida        9298.9952  9055.9578          0.8987
-                  5 R&D Spend, Marketing Spend, Administration, State_Florida, State_New York        9550.6761  9055.9573          0.8987
+ Number of Features                                                                                                                                                                                                                                                                                                   Selected Features  CV RMSE (train)  CV RMSE SD  Test RMSE  Test R-squared
+                  1                                                                                                                                                                                                                                                                                     Income composition of resources           4.9664      0.3802     5.7113          0.6509
+                  2                                                                                                                                                                                                                                                                       Income composition of resources, log HIV/AIDS           4.0381      0.3434     3.8344          0.8426
+                  3                                                                                                                                                                                                                                                      Income composition of resources, log HIV/AIDS, Adult Mortality           3.7448      0.2543     3.8563          0.8408
+                  4                                                                                                                                                                                                                               Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths           3.6685      0.2594     3.7081          0.8528
+                  5                                                                                                                                                                                                                   Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria           3.5923      0.2049     3.6571          0.8569
+                  6                                                                                                                                                                                                            Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio           3.5776      0.2026     3.6936          0.8540
+                  7                                                                                                                                                                                         Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio, Status_Developing           3.5626      0.1986     3.6027          0.8611
+                  8                                                                                                                                                                      Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio, Status_Developing, Total expenditure           3.5447      0.1817     3.5445          0.8655
+                  9                                                                                                                                          Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio, Status_Developing, Total expenditure, log percentage expenditure           3.5410      0.1855     3.5133          0.8679
+                 10                                                                                                                                    Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio, Status_Developing, Total expenditure, log percentage expenditure, Year           3.5363      0.1806     3.4715          0.8710
+                 11                                                                                                                    Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio, Status_Developing, Total expenditure, log percentage expenditure, Year, log Population           3.5394      0.1849     3.4540          0.8723
+                 12                                                                                                       Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio, Status_Developing, Total expenditure, log percentage expenditure, Year, log Population, Hepatitis B           3.5423      0.1856     3.4470          0.8728
+                 13                                                                                              Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio, Status_Developing, Total expenditure, log percentage expenditure, Year, log Population, Hepatitis B, log GDP           3.5656      0.2284     3.4329          0.8739
+                 14                                                                                   Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio, Status_Developing, Total expenditure, log percentage expenditure, Year, log Population, Hepatitis B, log GDP, Schooling           3.5826      0.2473     3.4334          0.8738
+                 15                                                                Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio, Status_Developing, Total expenditure, log percentage expenditure, Year, log Population, Hepatitis B, log GDP, Schooling, log infant deaths           3.5474      0.2455     3.4868          0.8699
+                 16                                                   Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio, Status_Developing, Total expenditure, log percentage expenditure, Year, log Population, Hepatitis B, log GDP, Schooling, log infant deaths, log Measles           3.5506      0.2442     3.4888          0.8697
+                 17                                          Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio, Status_Developing, Total expenditure, log percentage expenditure, Year, log Population, Hepatitis B, log GDP, Schooling, log infant deaths, log Measles, Alcohol           3.5968      0.2333     3.4881          0.8698
+                 18                     Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio, Status_Developing, Total expenditure, log percentage expenditure, Year, log Population, Hepatitis B, log GDP, Schooling, log infant deaths, log Measles, Alcohol, thinness 1-19 years           3.6101      0.2344     3.4867          0.8699
+                 19 Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths, Diphtheria, Polio, Status_Developing, Total expenditure, log percentage expenditure, Year, log Population, Hepatitis B, log GDP, Schooling, log infant deaths, log Measles, Alcohol, thinness 1-19 years, thinness 5-9 years           3.6123      0.2335     3.4865          0.8699
 
 --- Forward SFS ---
- Number of Features                                                         Selected Features  CV RMSE (train)  Test RMSE  Test R-squared
-                  1                                                                 R&D Spend        9406.5787  7714.3349          0.9265
-                  2                                                 R&D Spend, Administration        9163.3454  9152.2748          0.8966
-                  3                                R&D Spend, Administration, Marketing Spend        9104.6812  8995.9058          0.9001
-                  4                 R&D Spend, Administration, Marketing Spend, State_Florida        9298.9952  9055.9578          0.8987
-                  5 R&D Spend, Administration, Marketing Spend, State_Florida, State_New York        9550.6761  9055.9573          0.8987
+ Number of Features                                                                                                                                                                                                                                                                                                   Selected Features  CV RMSE (train)  CV RMSE SD  Test RMSE  Test R-squared
+                  1                                                                                                                                                                                                                                                                                     Income composition of resources           4.9664      0.3802     5.7113          0.6509
+                  2                                                                                                                                                                                                                                                                       Income composition of resources, log HIV/AIDS           4.0381      0.3434     3.8344          0.8426
+                  3                                                                                                                                                                                                                                                      Income composition of resources, log HIV/AIDS, Adult Mortality           3.7448      0.2543     3.8563          0.8408
+                  4                                                                                                                                                                                                                                          Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria           3.6619      0.1936     3.7476          0.8497
+                  5                                                                                                                                                                                                                   Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths           3.5923      0.2049     3.6571          0.8569
+                  6                                                                                                                                                                                                Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths           3.5678      0.2053     3.7317          0.8510
+                  7                                                                                                                                                                             Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths, Total expenditure           3.5426      0.1840     3.6418          0.8581
+                  8                                                                                                                                                          Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths, Total expenditure, Status_Developing           3.5280      0.1933     3.5757          0.8632
+                  9                                                                                                                                                   Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths, Total expenditure, Status_Developing, Polio           3.5141      0.1888     3.6060          0.8608
+                 10                                                                                                                                             Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths, Total expenditure, Status_Developing, Polio, Year           3.5065      0.1851     3.5517          0.8650
+                 11                                                                                                                 Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths, Total expenditure, Status_Developing, Polio, Year, log percentage expenditure           3.5028      0.1879     3.5234          0.8671
+                 12                                                                                                 Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths, Total expenditure, Status_Developing, Polio, Year, log percentage expenditure, log Population           3.5051      0.1917     3.5072          0.8683
+                 13                                                                                    Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths, Total expenditure, Status_Developing, Polio, Year, log percentage expenditure, log Population, Hepatitis B           3.5077      0.1928     3.5023          0.8687
+                 14                                                                       Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths, Total expenditure, Status_Developing, Polio, Year, log percentage expenditure, log Population, Hepatitis B, log Measles           3.5107      0.1912     3.5048          0.8685
+                 15                                                  Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths, Total expenditure, Status_Developing, Polio, Year, log percentage expenditure, log Population, Hepatitis B, log Measles, thinness 1-19 years           3.5279      0.1916     3.5016          0.8688
+                 16                              Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths, Total expenditure, Status_Developing, Polio, Year, log percentage expenditure, log Population, Hepatitis B, log Measles, thinness 1-19 years, thinness 5-9 years           3.5302      0.1913     3.5016          0.8688
+                 17                   Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths, Total expenditure, Status_Developing, Polio, Year, log percentage expenditure, log Population, Hepatitis B, log Measles, thinness 1-19 years, thinness 5-9 years, Schooling           3.5481      0.2038     3.5016          0.8688
+                 18          Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths, Total expenditure, Status_Developing, Polio, Year, log percentage expenditure, log Population, Hepatitis B, log Measles, thinness 1-19 years, thinness 5-9 years, Schooling, log GDP           3.5713      0.2443     3.4869          0.8699
+                 19 Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log under-five deaths, log infant deaths, Total expenditure, Status_Developing, Polio, Year, log percentage expenditure, log Population, Hepatitis B, log Measles, thinness 1-19 years, thinness 5-9 years, Schooling, log GDP, Alcohol           3.6123      0.2335     3.4865          0.8699
 
 --- RFE ---
- Number of Features                                                         Selected Features  CV RMSE (train)  Test RMSE  Test R-squared
-                  1                                                                 R&D Spend        9406.5787  7714.3349          0.9265
-                  2                                                R&D Spend, Marketing Spend        9186.6804  8206.3288          0.9168
-                  3                                R&D Spend, Marketing Spend, Administration        9104.6812  8995.9058          0.9001
-                  4                 R&D Spend, Marketing Spend, Administration, State_Florida        9298.9952  9055.9578          0.8987
-                  5 R&D Spend, Marketing Spend, Administration, State_Florida, State_New York        9550.6761  9055.9573          0.8987
+ Number of Features                                                                                                                                                                                                                                                                                                   Selected Features  CV RMSE (train)  CV RMSE SD  Test RMSE  Test R-squared
+                  1                                                                                                                                                                                                                                                                                               log under-five deaths           7.3457      0.9774     7.9089          0.3305
+                  2                                                                                                                                                                                                                                                                            log under-five deaths, log infant deaths           6.7709      0.6273     7.5886          0.3836
+                  3                                                                                                                                                                                                                                           log under-five deaths, log infant deaths, Income composition of resources           4.7332      0.2952     5.5585          0.6693
+                  4                                                                                                                                                                                                                             log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS           3.9269      0.3213     3.7597          0.8487
+                  5                                                                                                                                                                                                            log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality           3.6444      0.2541     3.8008          0.8454
+                  6                                                                                                                                                                                                log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria           3.5678      0.2053     3.7317          0.8510
+                  7                                                                                                                                                                    log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log percentage expenditure           3.5577      0.2082     3.6764          0.8553
+                  8                                                                                                                                                           log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log percentage expenditure, log GDP           3.5736      0.2583     3.6487          0.8575
+                  9                                                                                                                                        log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log percentage expenditure, log GDP, Status_Developing           3.5572      0.2566     3.5624          0.8642
+                 10                                                                                                                                 log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log percentage expenditure, log GDP, Status_Developing, Polio           3.5395      0.2494     3.5935          0.8618
+                 11                                                                                                              log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log percentage expenditure, log GDP, Status_Developing, Polio, Total expenditure           3.5320      0.2271     3.5599          0.8644
+                 12                                                                                                   log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log percentage expenditure, log GDP, Status_Developing, Polio, Total expenditure, Schooling           3.5521      0.2443     3.5620          0.8642
+                 13                                                                                             log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log percentage expenditure, log GDP, Status_Developing, Polio, Total expenditure, Schooling, Year           3.5429      0.2419     3.5094          0.8682
+                 14                                                                             log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log percentage expenditure, log GDP, Status_Developing, Polio, Total expenditure, Schooling, Year, log Population           3.5446      0.2446     3.4917          0.8695
+                 15                                                                log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log percentage expenditure, log GDP, Status_Developing, Polio, Total expenditure, Schooling, Year, log Population, Hepatitis B           3.5474      0.2455     3.4868          0.8699
+                 16                                                   log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log percentage expenditure, log GDP, Status_Developing, Polio, Total expenditure, Schooling, Year, log Population, Hepatitis B, log Measles           3.5506      0.2442     3.4888          0.8697
+                 17                                          log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log percentage expenditure, log GDP, Status_Developing, Polio, Total expenditure, Schooling, Year, log Population, Hepatitis B, log Measles, Alcohol           3.5968      0.2333     3.4881          0.8698
+                 18                     log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log percentage expenditure, log GDP, Status_Developing, Polio, Total expenditure, Schooling, Year, log Population, Hepatitis B, log Measles, Alcohol, thinness 1-19 years           3.6101      0.2344     3.4867          0.8699
+                 19 log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria, log percentage expenditure, log GDP, Status_Developing, Polio, Total expenditure, Schooling, Year, log Population, Hepatitis B, log Measles, Alcohol, thinness 1-19 years, thinness 5-9 years           3.6123      0.2335     3.4865          0.8699
 
 --- ElasticNet Ranking ---
- Number of Features                                                         Selected Features  CV RMSE (train)  Test RMSE  Test R-squared
-                  1                                                                 R&D Spend        9406.5787  7714.3349          0.9265
-                  2                                                R&D Spend, Marketing Spend        9186.6804  8206.3288          0.9168
-                  3                                R&D Spend, Marketing Spend, State_New York        9460.9210  8242.7826          0.9161
-                  4                 R&D Spend, Marketing Spend, State_New York, State_Florida        9655.4667  8254.6866          0.9159
-                  5 R&D Spend, Marketing Spend, State_New York, State_Florida, Administration        9550.6761  9055.9573          0.8987
+ Number of Features                                                                                                                                                                                                                                                                                                   Selected Features  CV RMSE (train)  CV RMSE SD  Test RMSE  Test R-squared
+                  1                                                                                                                                                                                                                                                                                     Income composition of resources           4.9664      0.3802     5.7113          0.6509
+                  2                                                                                                                                                                                                                                                                       Income composition of resources, log HIV/AIDS           4.0381      0.3434     3.8344          0.8426
+                  3                                                                                                                                                                                                                                                            Income composition of resources, log HIV/AIDS, Schooling           4.0555      0.3509     3.8265          0.8433
+                  4                                                                                                                                                                                                                                           Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality           3.7592      0.2635     3.8405          0.8421
+                  5                                                                                                                                                                                                                    Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths           3.6822      0.2700     3.6978          0.8536
+                  6                                                                                                                                                                                                 Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths           3.6591      0.2647     3.7914          0.8462
+                  7                                                                                                                                                                     Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths, log percentage expenditure           3.6524      0.2693     3.7436          0.8500
+                  8                                                                                                                                                            Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths, log percentage expenditure, log GDP           3.6755      0.3327     3.7219          0.8517
+                  9                                                                                                                                                     Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths, log percentage expenditure, log GDP, Polio           3.6005      0.2818     3.7499          0.8495
+                 10                                                                                                                                         Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths, log percentage expenditure, log GDP, Polio, Diphtheria           3.5759      0.2693     3.6773          0.8553
+                 11                                                                                                                      Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths, log percentage expenditure, log GDP, Polio, Diphtheria, Status_Developing           3.5613      0.2655     3.5934          0.8618
+                 12                                                                                                 Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths, log percentage expenditure, log GDP, Polio, Diphtheria, Status_Developing, thinness 1-19 years           3.5751      0.2586     3.5854          0.8624
+                 13                                                                             Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths, log percentage expenditure, log GDP, Polio, Diphtheria, Status_Developing, thinness 1-19 years, thinness 5-9 years           3.5774      0.2569     3.5839          0.8625
+                 14                                                                       Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths, log percentage expenditure, log GDP, Polio, Diphtheria, Status_Developing, thinness 1-19 years, thinness 5-9 years, Year           3.5668      0.2534     3.5273          0.8668
+                 15                                                    Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths, log percentage expenditure, log GDP, Polio, Diphtheria, Status_Developing, thinness 1-19 years, thinness 5-9 years, Year, Total expenditure           3.5600      0.2404     3.5062          0.8684
+                 16                                    Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths, log percentage expenditure, log GDP, Polio, Diphtheria, Status_Developing, thinness 1-19 years, thinness 5-9 years, Year, Total expenditure, log Population           3.5642      0.2444     3.4900          0.8696
+                 17                       Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths, log percentage expenditure, log GDP, Polio, Diphtheria, Status_Developing, thinness 1-19 years, thinness 5-9 years, Year, Total expenditure, log Population, Hepatitis B           3.5674      0.2455     3.4852          0.8700
+                 18          Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths, log percentage expenditure, log GDP, Polio, Diphtheria, Status_Developing, thinness 1-19 years, thinness 5-9 years, Year, Total expenditure, log Population, Hepatitis B, log Measles           3.5713      0.2443     3.4869          0.8699
+                 19 Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality, log under-five deaths, log infant deaths, log percentage expenditure, log GDP, Polio, Diphtheria, Status_Developing, thinness 1-19 years, thinness 5-9 years, Year, Total expenditure, log Population, Hepatitis B, log Measles, Alcohol           3.6123      0.2335     3.4865          0.8699
 
---- Exhaustive Search ---
- Number of Features                                                         Selected Features  CV RMSE (train)  Test RMSE  Test R-squared
-                  1                                                                 R&D Spend        9406.5787  7714.3349          0.9265
-                  2                                                 R&D Spend, Administration        9163.3454  9152.2748          0.8966
-                  3                                R&D Spend, Administration, Marketing Spend        9104.6812  8995.9058          0.9001
-                  4                 R&D Spend, Administration, Marketing Spend, State_Florida        9298.9952  9055.9578          0.8987
-                  5 R&D Spend, Administration, Marketing Spend, State_Florida, State_New York        9550.6761  9055.9573          0.8987
+--- Exhaustive Search: skipped (19 features -> 524,287 subsets; limit p <= 14) ---
 
---- Best subset per method (chosen by CV RMSE on training data) ---
-            Method  Best Number of Features                          Selected Features  CV RMSE (train)  Test RMSE  Test R-squared
-Lasso (L1 Ranking)                        3 R&D Spend, Marketing Spend, Administration        9104.6812  8995.9058          0.9001
-       Forward SFS                        3 R&D Spend, Administration, Marketing Spend        9104.6812  8995.9058          0.9001
-               RFE                        3 R&D Spend, Marketing Spend, Administration        9104.6812  8995.9058          0.9001
-ElasticNet Ranking                        2                 R&D Spend, Marketing Spend        9186.6804  8206.3288          0.9168
- Exhaustive Search                        3 R&D Spend, Administration, Marketing Spend        9104.6812  8995.9058          0.9001
+--- 1-SD subset per method ---
+            Method  k (CV best)  k (1-SD)                                                                                 Selected Features (1-SD)  CV RMSE (train)  Test RMSE  Test R-squared
+Lasso (L1 Ranking)           10         4                    Income composition of resources, log HIV/AIDS, Adult Mortality, log under-five deaths           3.6685     3.7081          0.8528
+       Forward SFS           11         4                               Income composition of resources, log HIV/AIDS, Adult Mortality, Diphtheria           3.6619     3.7476          0.8497
+               RFE           11         5 log under-five deaths, log infant deaths, Income composition of resources, log HIV/AIDS, Adult Mortality           3.6444     3.8008          0.8454
+ElasticNet Ranking           15         4                                Income composition of resources, log HIV/AIDS, Schooling, Adult Mortality           3.7592     3.8405          0.8421
 
---- Full model coefficients (numeric features standardized) ---
-num__R&D Spend          38102.3
-num__Marketing Spend     3386.2
-num__Administration     -1864.8
-cat__State_Florida        938.8
-cat__State_New York         7.0
-dtype: float64
-Intercept: 115320.9
+Best CV: Forward SFS k=11 (CV RMSE 3.503 +/- 0.188)
+Selected (1-SD rule): Forward SFS k=4 -> ['Income composition of resources', 'log HIV/AIDS', 'Adult Mortality', 'Diphtheria']
+
+--- Model comparison (test = unseen countries) ---
+                 name  n_features     R2   RMSE    MAE  MAPE_pct  cv_r2_mean  cv_r2_std
+   OLS (all features)          19 0.8699 3.4865 2.6753    4.1324      0.8464     0.0206
+     OLS (selected 4)           4 0.8497 3.7476 2.8151    4.4130      0.8422     0.0198
+Ridge (all, CV alpha)          19 0.8703 3.4816 2.6707    4.1259         NaN        NaN
+Lasso (all, CV alpha)          19 0.8681 3.5101 2.6618    4.1217         NaN        NaN
+
+--- Final OLS (training data) ---
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:        Life expectancy   R-squared:                       0.855
+Model:                            OLS   Adj. R-squared:                  0.855
+Method:                 Least Squares   F-statistic:                     3438.
+Date:                Tue, 27 Oct 2026   Prob (F-statistic):               0.00
+Time:                        01:00:07   Log-Likelihood:                -6299.6
+No. Observations:                2336   AIC:                         1.261e+04
+Df Residuals:                    2331   BIC:                         1.264e+04
+Df Model:                           4                                         
+Covariance Type:            nonrobust                                         
+===================================================================================================
+                                      coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------------------------
+const                              49.0816      0.515     95.316      0.000      48.072      50.091
+Income composition of resources    32.6493      0.646     50.546      0.000      31.383      33.916
+log HIV/AIDS                       -3.3603      0.141    -23.805      0.000      -3.637      -3.084
+Adult Mortality                    -0.0165      0.001    -20.168      0.000      -0.018      -0.015
+Diphtheria                          0.0380      0.004     10.736      0.000       0.031       0.045
+==============================================================================
+Omnibus:                      221.501   Durbin-Watson:                   0.590
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):              758.008
+Skew:                          -0.447   Prob(JB):                    2.52e-165
+Kurtosis:                       5.643   Cond. No.                     2.24e+03
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+[2] The condition number is large, 2.24e+03. This might indicate that there are
+strong multicollinearity or other numerical problems.
+
+--- Cluster-robust (by country) inference ---
+                                    coef  se_cluster  p_cluster
+const                            49.0816      1.6223     0.0000
+Income composition of resources  32.6493      2.3721     0.0000
+log HIV/AIDS                     -3.3603      0.3613     0.0000
+Adult Mortality                  -0.0165      0.0030     0.0000
+Diphtheria                        0.0380      0.0128     0.0029
 
 ======================================================================
 PHASE 5: EVALUATION
 ======================================================================
---- Hold-out test metrics ---
-                    R2  Adj_R2        MAE       RMSE  MAPE_pct
-Full model      0.8987  0.7721  6961.4778  9055.9573   10.2782
-Selected model  0.9265  0.9173  6077.3633  7714.3349    9.1360
-Baseline (predict train mean) RMSE: 33,777
-5-fold CV R2 on full data (selected model): 0.9374 +/- 0.0373
+Test metrics (selected model): {'R2': 0.8497, 'RMSE': 3.7476, 'MAE': 2.8151, 'MAPE_pct': 4.413}
+Grouped CV R2: 0.8422 +/- 0.0198;  baseline RMSE 9.949
+95% prediction interval coverage on test: 93.4%
 
---- Success criteria review ---
-[PASS] Test R2 >= 0.9
-[PASS] CV R2 >= 0.85
-[PASS] MAPE <= 10.0%
+--- Assumption checks ---
+Linearity (Ramsey RESET)                         stat=29.454  p=0.0000  pass=False
+Homoscedasticity (Breusch-Pagan)                 stat=119.750  p=0.0000  pass=False
+Normality of residuals (Jarque-Bera)             stat=758.008  p=0.0000  pass=False
+Independence (Durbin-Watson, by country/year)    stat=0.565  pass=False
+No multicollinearity (max VIF)                   stat=1.981  pass=True
+Influential points (Cook's D > 4/n)              stat=174.000  pass=None
 
-Decision: APPROVE for deployment
-
---- Answers to business questions ---
-1. Strongest spending driver: R&D Spend
-2. State in selected model: no -> State does not add meaningful predictive power
-3. Typical prediction error (MAE): $6,077
+--- Success criteria ---
+[PASS] Test R2 >= 0.8
+[PASS] Test RMSE <= 4.5 years
+[PASS] Grouped CV R2 >= 0.75
 
 --- 5.2 Process review ---
-[OK] Test set touched only after model selection
-[OK] Scaler/encoder fitted inside pipeline (no leakage)
-[OK] Multicollinearity acceptable (all VIF <= 10)
-[OK] Model beats naive baseline RMSE
+[OK] Split by country (no country in both train and test)
+[OK] Fallback imputation medians computed on training rows only
+[OK] Feature selection used grouped CV on training data only
+[OK] Selected model beats the mean-only baseline
 
 --- 5.3 Next steps ---
-Proceed to Phase 6 (deployment).
+Proceed to Phase 6 (deployment). Note: Linearity (Ramsey RESET); Homoscedasticity (Breusch-Pagan); Normality of residuals (Jarque-Bera); Independence (Durbin-Watson, by country/year) not satisfied - report cluster-robust standard errors and treat p-values with care.
+
+--- Answers to business questions ---
+1. Strongest indicators (|standardised beta|): {'Income composition of resources': 0.537, 'log HIV/AIDS': 0.264, 'Adult Mortality': 0.216}
+2. Error on unseen countries: RMSE 3.75 years, R2 0.850
+3. Typical 95% prediction interval width: 14.1 years
 
 ======================================================================
 PHASE 6: DEPLOYMENT
 ======================================================================
-Model saved to /Users/taemi/Desktop/AIOT-week5/crispdm_output/startup_profit_model.joblib
-Predicted profit for {'R&D Spend': 160000, 'Administration': 130000, 'Marketing Spend': 300000, 'State': 'New York'}: $185,720
-Predicted profit for {'R&D Spend': 50000, 'Administration': 120000, 'Marketing Spend': 150000, 'State': 'Florida'}: $91,747
-Final report saved to /Users/taemi/Desktop/AIOT-week5/crispdm_output/final_report.json
+Model saved to crispdm_output/life_expectancy_model.joblib
+Azerbaijan 2014: actual 72.5, predicted 74.9 (95% PI 67.8-82.0)
+Belgium 2014: actual 89.0, predicted 80.0 (95% PI 73.0-87.1)
+Belize 2014: actual 70.0, predicted 72.3 (95% PI 65.2-79.4)
+Saved model_data.json / model_data.js and crispdm_output/final_report.json
 
-Project review: with only 50 samples, results have high variance; collect more data before high-stakes use.
-Web report data saved to model_data.json / model_data.js
+Project review: associations are not causal; country-level panel data means observations within a country are correlated, so cluster-robust inference is reported.

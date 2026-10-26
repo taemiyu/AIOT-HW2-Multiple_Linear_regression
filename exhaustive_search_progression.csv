@@ -1,6 +1,0 @@
-Number of Features,Selected Features,CV RMSE (train),Test RMSE,Test R-squared
-1,R&D Spend,9406.57872018132,7714.334890830184,0.9265108109341951
-2,"R&D Spend, Administration",9163.34536294893,9152.274782350903,0.8965609365509308
-3,"R&D Spend, Administration, Marketing Spend",9104.681197069249,8995.905803361415,0.9000653083037321
-4,"R&D Spend, Administration, Marketing Spend, State_Florida",9298.995179080479,9055.957752233735,0.8987266318428201
-5,"R&D Spend, Administration, Marketing Spend, State_Florida, State_New York",9550.676105685252,9055.957323458471,0.8987266414328636

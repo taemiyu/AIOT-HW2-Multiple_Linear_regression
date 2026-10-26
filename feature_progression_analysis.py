@@ -1,26 +1,23 @@
 """
-50 Startups - Feature progression analysis (CRISP-DM Phase 4, modeling)
+Feature progression analysis (CRISP-DM Phase 4, modeling)
 
-How do RMSE and R2 change as a linear regression uses 1, 2, ... 5 features,
-when the features are chosen by five different selection algorithms?
+How do RMSE and R2 change as a linear regression uses 1, 2, ... p features,
+when the features are ranked by different selection algorithms?
 
   1. Lasso (L1) ranking     - order in which features enter the Lasso path
-  2. Forward SFS            - sklearn SequentialFeatureSelector, forward
+  2. Forward SFS            - greedy forward selection by CV RMSE
   3. RFE                    - recursive feature elimination ranking
-  4. ElasticNet ranking     - order of entry on the ElasticNet path
-  5. Exhaustive search      - best subset of each size
+  4. ElasticNet ranking     - order of entry on the ElasticNet path (l1_ratio 0.5)
+  5. Exhaustive search      - best subset of each size (only when p <= 14;
+                              2^p - 1 subsets is infeasible beyond that)
 
-Every algorithm only sees the TRAINING set and chooses by 5-fold CV RMSE.
-The test set is used only to report how each chosen subset generalises.
+Every algorithm only sees the TRAINING set and chooses by CV RMSE on the
+folds it is given (grouped by country in main.py, so the same country is
+never in both the fitting and the scoring part of a fold). The test set is
+used only to report how each chosen subset generalises.
 
-Outputs (next to this script):
-  <method>_progression.csv / <method>_plot.png    for each of the 5 methods
-  all_5_algorithms_comparison_plot.png
-  feature_selection_comparison.csv / .png
-
-Usage:
-    python feature_progression_analysis.py           # standalone
-    (also called from main.py during Phase 4)
+Called from main.py:
+    progressions, comparison = run(Xtr, ytr, Xte, yte, folds, out_dir)
 """
 
 from itertools import combinations
@@ -32,16 +29,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from sklearn.model_selection import train_test_split, KFold, cross_val_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression, lasso_path, enet_path
-from sklearn.feature_selection import RFE, SequentialFeatureSelector
+from sklearn.feature_selection import RFE
 from sklearn.metrics import r2_score, mean_squared_error
-
-BASE_DIR = Path(__file__).resolve().parent
-RANDOM_STATE = 42
-TEST_SIZE = 0.2
-TARGET = "Profit"
 
 METHODS = {
     "lasso_l1_ranking": "Lasso (L1 Ranking)",
@@ -50,77 +41,66 @@ METHODS = {
     "elasticnet_ranking": "ElasticNet Ranking",
     "exhaustive_search": "Exhaustive Search",
 }
+EXHAUSTIVE_MAX_P = 14
 
 
-def load_and_split(csv_path=BASE_DIR / "50_Startups.csv"):
-    """One-hot encode State (drop first -> no dummy trap), then 80/20 split.
-    Same random_state as main.py, so both use identical train/test rows."""
-    df = pd.read_csv(csv_path)
-    X = pd.get_dummies(df.drop(columns=TARGET), columns=["State"],
-                       drop_first=True, dtype=float)
-    y = df[TARGET]
-    return train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+def cv_rmse(X, y, cols, folds):
+    """Mean and SD of fold RMSE. `folds` = list of positional test indices."""
+    Xc, yv, n = X[list(cols)].to_numpy(), y.to_numpy(), len(y)
+    scores = []
+    for test in folds:
+        mask = np.ones(n, bool)
+        mask[test] = False
+        m = LinearRegression().fit(Xc[mask], yv[mask])
+        scores.append(np.sqrt(mean_squared_error(yv[test], m.predict(Xc[test]))))
+    return float(np.mean(scores)), float(np.std(scores))
 
 
-def make_cv():
-    return KFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
-
-
-def cv_rmse(X_train, y_train, cols):
-    scores = cross_val_score(LinearRegression(), X_train[list(cols)], y_train,
-                             cv=make_cv(), scoring="neg_root_mean_squared_error")
-    return -scores.mean()
-
-
-def path_ranking(X_train, y_train, path_fn, **kw):
-    """Rank features by how early (at which penalty) they enter the
-    regularisation path: earlier entry = more important."""
-    Xs = StandardScaler().fit_transform(X_train)
-    yc = y_train.to_numpy() - y_train.mean()
+def path_ranking(X, y, path_fn, **kw):
+    """Earlier entry on the regularisation path = more important."""
+    Xs = StandardScaler().fit_transform(X)
+    yc = y.to_numpy() - y.mean()
     alphas, coefs, _ = path_fn(Xs, yc, alphas=300, **kw)   # alphas decreasing
     nonzero = np.abs(coefs) > 1e-8
     entry = np.where(nonzero.any(axis=1), nonzero.argmax(axis=1), len(alphas))
     final_size = np.abs(coefs[:, -1])
     order = sorted(range(len(entry)), key=lambda i: (entry[i], -final_size[i]))
-    return [X_train.columns[i] for i in order]
+    return [X.columns[i] for i in order]
 
 
-def subsets_lasso(X_train, y_train):
-    rank = path_ranking(X_train, y_train, lasso_path)
+def prefixes(rank):
     return [rank[:k] for k in range(1, len(rank) + 1)]
 
 
-def subsets_elasticnet(X_train, y_train):
-    rank = path_ranking(X_train, y_train, enet_path, l1_ratio=0.5)
-    return [rank[:k] for k in range(1, len(rank) + 1)]
+def subsets_lasso(X, y, folds):
+    return prefixes(path_ranking(X, y, lasso_path))
 
 
-def subsets_rfe(X_train, y_train):
-    Xs = pd.DataFrame(StandardScaler().fit_transform(X_train), columns=X_train.columns)
-    ranking = RFE(LinearRegression(), n_features_to_select=1).fit(Xs, y_train).ranking_
-    rank = [c for _, c in sorted(zip(ranking, X_train.columns))]
-    return [rank[:k] for k in range(1, len(rank) + 1)]
+def subsets_elasticnet(X, y, folds):
+    return prefixes(path_ranking(X, y, enet_path, l1_ratio=0.5))
 
 
-def subsets_forward_sfs(X_train, y_train):
-    n = X_train.shape[1]
-    out = []
-    for k in range(1, n):
-        sfs = SequentialFeatureSelector(
-            LinearRegression(), n_features_to_select=k, direction="forward",
-            scoring="neg_root_mean_squared_error", cv=make_cv(),
-        ).fit(X_train, y_train)
-        chosen = list(X_train.columns[sfs.get_support()])
-        prev = out[-1] if out else []
-        # keep the order in which features were added
-        out.append(prev + [c for c in chosen if c not in prev])
-    out.append(out[-1] + [c for c in X_train.columns if c not in out[-1]])
+def subsets_rfe(X, y, folds):
+    Xs = pd.DataFrame(StandardScaler().fit_transform(X), columns=X.columns)
+    ranking = RFE(LinearRegression(), n_features_to_select=1).fit(Xs, y).ranking_
+    return prefixes([c for _, c in sorted(zip(ranking, X.columns))])
+
+
+def subsets_forward_sfs(X, y, folds):
+    chosen, out = [], []
+    while len(chosen) < X.shape[1]:
+        best = min((c for c in X.columns if c not in chosen),
+                   key=lambda c: cv_rmse(X, y, chosen + [c], folds)[0])
+        chosen.append(best)
+        out.append(list(chosen))
     return out
 
 
-def subsets_exhaustive(X_train, y_train):
-    cols = list(X_train.columns)
-    return [list(min(combinations(cols, k), key=lambda s: cv_rmse(X_train, y_train, s)))
+def subsets_exhaustive(X, y, folds):
+    cols = list(X.columns)
+    if len(cols) > EXHAUSTIVE_MAX_P:
+        return None
+    return [list(min(combinations(cols, k), key=lambda s: cv_rmse(X, y, s, folds)[0]))
             for k in range(1, len(cols) + 1)]
 
 
@@ -133,28 +113,33 @@ SUBSET_FNS = {
 }
 
 
-def progression(X_train, X_test, y_train, y_test, subsets):
+def progression(Xtr, ytr, Xte, yte, folds, subsets):
     rows = []
     for feats in subsets:
-        model = LinearRegression().fit(X_train[feats], y_train)
-        pred = model.predict(X_test[feats])
-        rows.append({
-            "Number of Features": len(feats),
-            "Selected Features": ", ".join(feats),
-            "CV RMSE (train)": cv_rmse(X_train, y_train, feats),
-            "Test RMSE": np.sqrt(mean_squared_error(y_test, pred)),
-            "Test R-squared": r2_score(y_test, pred),
-        })
+        m = LinearRegression().fit(Xtr[feats], ytr)
+        pred = m.predict(Xte[feats])
+        mean, sd = cv_rmse(Xtr, ytr, feats, folds)
+        rows.append({"Number of Features": len(feats), "Selected Features": ", ".join(feats),
+                     "CV RMSE (train)": mean, "CV RMSE SD": sd,
+                     "Test RMSE": np.sqrt(mean_squared_error(yte, pred)),
+                     "Test R-squared": r2_score(yte, pred)})
     return pd.DataFrame(rows)
+
+
+def one_sd_k(df):
+    """Smallest k whose CV RMSE is within one fold-SD of the best."""
+    best = df.loc[df["CV RMSE (train)"].idxmin()]
+    ok = df[df["CV RMSE (train)"] <= best["CV RMSE (train)"] + best["CV RMSE SD"]]
+    return int(best["Number of Features"]), int(ok["Number of Features"].min())
 
 
 def plot_progression(df, title, path):
     k = df["Number of Features"]
-    fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     axes[0].plot(k, df["Test RMSE"], "o-", label="Test")
-    axes[0].plot(k, df["CV RMSE (train)"], "s--", alpha=0.7, label="CV (train)")
+    axes[0].plot(k, df["CV RMSE (train)"], "s--", alpha=0.7, label="CV (train, grouped)")
     axes[0].set_title(f"RMSE by Number of Features - {title}")
-    axes[0].set_ylabel("RMSE")
+    axes[0].set_ylabel("RMSE (years)")
     axes[0].legend()
     axes[1].plot(k, df["Test R-squared"], "o-", color="tab:green")
     axes[1].set_title(f"R-squared by Number of Features - {title}")
@@ -167,15 +152,17 @@ def plot_progression(df, title, path):
     plt.close()
 
 
-def run(out_dir=BASE_DIR, csv_path=BASE_DIR / "50_Startups.csv", verbose=True):
-    """Run all 5 methods, write CSVs/plots, return (progressions, comparison)."""
+def run(Xtr, ytr, Xte, yte, folds, out_dir, verbose=True):
     out_dir = Path(out_dir)
-    X_train, X_test, y_train, y_test = load_and_split(csv_path)
-
     progressions = {}
     for key, title in METHODS.items():
-        df = progression(X_train, X_test, y_train, y_test,
-                         SUBSET_FNS[key](X_train, y_train))
+        subsets = SUBSET_FNS[key](Xtr, ytr, folds)
+        if subsets is None:
+            if verbose:
+                print(f"\n--- {title}: skipped ({Xtr.shape[1]} features -> "
+                      f"{2 ** Xtr.shape[1] - 1:,} subsets; limit p <= {EXHAUSTIVE_MAX_P}) ---")
+            continue
+        df = progression(Xtr, ytr, Xte, yte, folds, subsets)
         df.to_csv(out_dir / f"{key}_progression.csv", index=False)
         plot_progression(df, title, out_dir / f"{key}_plot.png")
         progressions[key] = df
@@ -183,54 +170,30 @@ def run(out_dir=BASE_DIR, csv_path=BASE_DIR / "50_Startups.csv", verbose=True):
             print(f"\n--- {title} ---")
             print(df.round(4).to_string(index=False))
 
-    # All 5 on one chart (test RMSE)
-    fig, ax = plt.subplots(figsize=(10, 6))
-    markers = ["o", "s", "^", "D", "v"]
-    for (key, title), m in zip(METHODS.items(), markers):
-        df = progressions[key]
-        ax.plot(df["Number of Features"], df["Test RMSE"], marker=m, label=title, alpha=0.85)
-    ax.set_title("RMSE Comparison across 5 Feature Selection Algorithms")
+    fig, ax = plt.subplots(figsize=(11, 6))
+    for (key, df), m in zip(progressions.items(), ["o", "s", "^", "D", "v"]):
+        ax.plot(df["Number of Features"], df["Test RMSE"], marker=m, label=METHODS[key], alpha=0.85)
+    ax.set_title("Test RMSE by Number of Features across Feature Selection Algorithms")
     ax.set_xlabel("Number of Features")
-    ax.set_ylabel("Test RMSE (Lower is Better)")
-    ax.set_xticks(range(1, X_train.shape[1] + 1))
+    ax.set_ylabel("Test RMSE (years, lower is better)")
+    ax.set_xticks(range(1, Xtr.shape[1] + 1))
     ax.grid(alpha=0.3)
     ax.legend()
     plt.tight_layout()
-    plt.savefig(out_dir / "all_5_algorithms_comparison_plot.png", dpi=120)
+    plt.savefig(out_dir / "all_algorithms_comparison_plot.png", dpi=120)
     plt.close()
 
-    # Each method's best subset size, chosen by CV RMSE on training data
     comp = []
-    for key, title in METHODS.items():
-        df = progressions[key]
-        best = df.loc[df["CV RMSE (train)"].idxmin()]
-        comp.append({"Method": title, "Best Number of Features": int(best["Number of Features"]),
-                     "Selected Features": best["Selected Features"],
-                     "CV RMSE (train)": best["CV RMSE (train)"],
-                     "Test RMSE": best["Test RMSE"], "Test R-squared": best["Test R-squared"]})
+    for key, df in progressions.items():
+        k_best, k_1sd = one_sd_k(df)
+        r = df[df["Number of Features"] == k_1sd].iloc[0]
+        comp.append({"Method": METHODS[key], "k (CV best)": k_best, "k (1-SD)": k_1sd,
+                     "Selected Features (1-SD)": r["Selected Features"],
+                     "CV RMSE (train)": r["CV RMSE (train)"], "Test RMSE": r["Test RMSE"],
+                     "Test R-squared": r["Test R-squared"]})
     comparison = pd.DataFrame(comp)
     comparison.to_csv(out_dir / "feature_selection_comparison.csv", index=False)
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    axes[0].barh(comparison["Method"], comparison["Test RMSE"], color="tab:blue")
-    axes[0].set_title("Test RMSE of each method's best subset")
-    axes[0].set_xlim(comparison["Test RMSE"].min() * 0.9, comparison["Test RMSE"].max() * 1.03)
-    axes[1].barh(comparison["Method"], comparison["Test R-squared"], color="tab:green")
-    axes[1].set_title("Test R-squared of each method's best subset")
-    axes[1].set_xlim(comparison["Test R-squared"].min() - 0.02, 1)
-    for ax, col in zip(axes, ["Test RMSE", "Test R-squared"]):
-        ax.invert_yaxis()
-        for i, v in enumerate(comparison[col]):
-            ax.text(v, i, f" {v:,.0f}" if col == "Test RMSE" else f" {v:.4f}", va="center")
-    plt.tight_layout()
-    plt.savefig(out_dir / "feature_selection_comparison.png", dpi=120)
-    plt.close()
-
     if verbose:
-        print("\n--- Best subset per method (chosen by CV RMSE on training data) ---")
+        print("\n--- 1-SD subset per method ---")
         print(comparison.round(4).to_string(index=False))
     return progressions, comparison
-
-
-if __name__ == "__main__":
-    run()
