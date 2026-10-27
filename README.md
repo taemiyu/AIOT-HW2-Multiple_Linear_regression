@@ -53,6 +53,8 @@
 
 **第二個 Kaggle 資料集**：下拉選單的「Predict the Flood」（[Kaggle Playground Series S4E5](https://www.kaggle.com/competitions/playground-series-s4e5)），以 20 個因子評分預測洪水發生機率。原始訓練資料有 1,117,957 列，超過瀏覽器端上限，因此以隨機種子 42 抽樣 5,000 列存成 `datasets/flood.csv`；全部 20 個特徵的 OLS 測試集 R² 約 0.84。
 
+![Predict the Flood 資料集](docs/screenshots/explorer-flood.jpg)
+
 **加分：任意輸入資料集**：輸入 CSV 網址（作業範例網址）或上傳 CSV 檔。
 
 ![輸入 CSV 網址](docs/screenshots/explorer-custom.jpg)
@@ -63,7 +65,7 @@
 
 | 項目 | 檔案 | 線上瀏覽 |
 |---|---|---|
-| 報告書（PDF，17 頁） | [docs/HW2_report.pdf](docs/HW2_report.pdf) | https://aiot-hw2-multiple-linear-regression.vercel.app/docs/report |
+| 報告書（PDF，19 頁） | [docs/HW2_report.pdf](docs/HW2_report.pdf) | https://aiot-hw2-multiple-linear-regression.vercel.app/docs/report |
 | 資訊圖表 | [docs/infographic.png](docs/infographic.png)、[docs/infographic.pdf](docs/infographic.pdf) | https://aiot-hw2-multiple-linear-regression.vercel.app/docs/infographic |
 
 ![HW2 資訊圖表](docs/infographic.png)
@@ -78,7 +80,7 @@ python docs/build_docs.py
 
 | 要求 | 本專案的對應內容 |
 |---|---|
-| Kaggle 資料集，特徵數 > 13，標示來源與連結 | [Life Expectancy (WHO)](https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who)：20 個候選特徵，資料處理後 19 個 |
+| Kaggle 資料集，特徵數 > 13，標示來源與連結 | 主資料集 [Life Expectancy (WHO)](https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who)：20 個候選特徵，資料處理後 19 個；第二個資料集 [Predict the Flood](https://www.kaggle.com/competitions/playground-series-s4e5)：20 個特徵（探索器，報告書 2.2 節） |
 | 線性迴歸（單純／多元） | 多元線性迴歸（OLS）；另附單純線性迴歸（Income composition of resources）比較 |
 | 特徵選擇 | Lasso、Forward SFS、RFE、ElasticNet 四種演算法 × k = 1～19，以依國家分組的交叉驗證 + 1-SD 精簡原則選模型 |
 | 模型評估 | 測試集為 37 個「沒看過的國家」：R²、RMSE、MAE、MAPE、分組 CV R²；與 Ridge／Lasso 比較；五大迴歸假設檢定 |

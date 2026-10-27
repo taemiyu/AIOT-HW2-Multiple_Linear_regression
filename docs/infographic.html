@@ -58,6 +58,12 @@ h1 { font-family: "Songti TC", "Noto Serif TC", serif; font-size: 40px; margin: 
 <div class="step"><div class="num">6</div><div><h2>Deployment 部署</h2>
 <div class="flow"><span>通過評估才部署</span><i>→</i><span>全部資料重新擬合</span><i>→</i><span>joblib 儲存模型</span><i>→</i><span>predict_life_expectancy() 回傳預測與區間</span><i>→</i><span>網站：報告 + 互動探索器</span></div></div></div>
 
+<div class="step"><div class="num">+</div><div><h2>互動探索器（加分）：6 個資料集、可任意輸入</h2>
+<div class="cols"><ul><li><b>第二個 Kaggle 資料集：Predict the Flood</b>（Playground Series S4E5）：20 個因子評分 → 洪水發生機率，抽樣 5,000 列</li>
+<li>全部 20 個特徵的 OLS：測試集 R² 0.842，95% 預測區間涵蓋 94.6%</li>
+<li>另有 50 Startups、Advertising、Medical Insurance、Boston Housing；也可輸入 CSV 網址或上傳檔案</li></ul>
+<div class="cols3"><div class="kpi"><small>內建資料集</small><b>6</b></div><div class="kpi"><small>特徵 &gt; 13 的 Kaggle 資料集</small><b>2</b></div><div class="kpi"><small>Flood 測試 R²</small><b>0.842</b></div></div></div></div></div>
+
 <div class="take"><div><b>R² 0.850</b><p>只用 4 個特徵，在 37 個沒看過的國家解釋 85% 的壽命差異</p></div><div><b>依國家切分</b><p>測試國家完全不在訓練集，避免同一國家洩漏答案</p></div><div><b>資料清理是關鍵</b><p>刪除 48% 錯誤的 BMI；同國中位數補值讓 R² 0.813 → 0.850</p></div><div><b>附預測區間</b><p>單一預測約 ±7 歲，93.4% 實際值落在 95% 區間內</p></div></div>
 <div class="foot">報告：https://aiot-hw2-multiple-linear-regression.vercel.app/ · 程式：https://github.com/taemiyu/AIOT-HW2-Multiple_Linear_regression</div>
 </div></body></html>

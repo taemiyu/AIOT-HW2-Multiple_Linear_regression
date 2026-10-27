@@ -181,12 +181,47 @@ h1 {{ font-family: "Songti TC", "Noto Serif TC", serif; font-size: 40px; margin:
 <div class="step"><div class="num">6</div><div><h2>Deployment 部署</h2>
 <div class="flow"><span>通過評估才部署</span><i>→</i><span>全部資料重新擬合</span><i>→</i><span>joblib 儲存模型</span><i>→</i><span>predict_life_expectancy() 回傳預測與區間</span><i>→</i><span>網站：報告 + 互動探索器</span></div></div></div>
 
+<div class="step"><div class="num">+</div><div><h2>互動探索器（加分）：6 個資料集、可任意輸入</h2>
+<div class="cols"><ul><li><b>第二個 Kaggle 資料集：Predict the Flood</b>（Playground Series S4E5）：20 個因子評分 → 洪水發生機率，抽樣 {FS['rows']:,} 列</li>
+<li>全部 20 個特徵的 OLS：測試集 R² {FS['r2']:.3f}，95% 預測區間涵蓋 {FS['pi_cov'] * 100:.1f}%</li>
+<li>另有 50 Startups、Advertising、Medical Insurance、Boston Housing；也可輸入 CSV 網址或上傳檔案</li></ul>
+<div class="cols3"><div class="kpi"><small>內建資料集</small><b>6</b></div><div class="kpi"><small>特徵 &gt; 13 的 Kaggle 資料集</small><b>2</b></div><div class="kpi"><small>Flood 測試 R²</small><b>{FS['r2']:.3f}</b></div></div></div></div></div>
+
 <div class="take">{''.join(f'<div><b>{esc(a)}</b><p>{esc(b)}</p></div>' for a, b in takeaways)}</div>
 <div class="foot">報告：{VERCEL} · 程式：{REPO}</div>
 </div></body></html>"""
 
 
 # ------------------------------------------------------------------ report
+FLOOD_URL = "https://www.kaggle.com/competitions/playground-series-s4e5"
+
+
+def flood_summary():
+    """OLS on the 5,000-row Predict the Flood sample (second Kaggle dataset in the explorer)."""
+    import numpy as np
+    import pandas as pd
+    import statsmodels.api as sm
+    from sklearn.linear_model import LinearRegression
+    from sklearn.model_selection import KFold, cross_val_score, train_test_split
+    df = pd.read_csv(ROOT / "datasets" / "flood.csv")
+    X, y = df.drop(columns="FloodProbability"), df["FloodProbability"]
+    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, random_state=42)
+    fit = sm.OLS(ytr, sm.add_constant(Xtr)).fit()
+    fr = fit.get_prediction(sm.add_constant(Xte)).summary_frame(alpha=0.05)
+    err = yte.to_numpy() - fr["mean"].to_numpy()
+    cv = cross_val_score(LinearRegression(), X, y, cv=KFold(5, shuffle=True, random_state=42), scoring="r2")
+    coef = fit.params.drop("const")
+    return {"rows": len(df), "features": list(X.columns), "train": len(Xtr), "test": len(Xte),
+            "r2": 1 - (err ** 2).sum() / ((yte - yte.mean()) ** 2).sum(), "rmse": float(np.sqrt((err ** 2).mean())),
+            "cv_mean": cv.mean(), "cv_sd": cv.std(), "y_mean": y.mean(), "y_sd": y.std(),
+            "pi_cov": float(((yte >= fr["obs_ci_lower"]) & (yte <= fr["obs_ci_upper"])).mean()),
+            "pi_half": float(((fr["obs_ci_upper"] - fr["obs_ci_lower"]) / 2).mean()),
+            "coef_min": coef.min(), "coef_max": coef.max(), "all_sig": bool((fit.pvalues.drop("const") < 0.001).all())}
+
+
+FS = flood_summary()
+
+
 def table(headers, rows, num_cols=()):
     th = "".join(f'<th class="{"n" if i in num_cols else ""}">{esc(h)}</th>' for i, h in enumerate(headers))
     tr = "".join("<tr>" + "".join(f'<td class="{"n" if i in num_cols else ""}">{c}</td>' for i, c in enumerate(r)) + "</tr>" for r in rows)
@@ -233,6 +268,12 @@ def report():
         ('GitHub：frinkleko/Life-expectancy（Data mining group project）', 'https://github.com/frinkleko/life-expectancy'),
     ]
     img = lambda name: f"../crispdm_output/{name}"
+    flood_table = table(["項目", "結果"], [
+        ["切分", f"隨機 80/20（種子 42）：訓練 {FS['train']:,} 列、測試 {FS['test']:,} 列"],
+        ["模型", f"OLS，全部 {len(FS['features'])} 個特徵"],
+        ["測試集 R²", f"{FS['r2']:.4f}"], ["測試集 RMSE", f"{FS['rmse']:.4f}"],
+        ["5-fold CV R²", f"{FS['cv_mean']:.4f} ± {FS['cv_sd']:.3f}"],
+        ["95% 預測區間涵蓋率", f"{FS['pi_cov'] * 100:.1f}%（平均約 ±{FS['pi_half']:.3f}）"]])
     return f"""<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>HW2 報告書：WHO 平均壽命多元線性迴歸</title>
 <style>
 @page {{ size: A4; margin: 18mm 16mm 18mm; }}
@@ -259,6 +300,7 @@ a {{ color: #44604a; word-break: break-all; }}
   <div class="tag">AIoT · HW2 · Multiple Linear Regression</div>
   <h1>WHO 平均壽命預測：<br>以 CRISP-DM 進行多元線性迴歸分析</h1>
   <p>資料集：Kaggle「Life Expectancy (WHO)」（{D['countries']} 國、{D['years'][0]}–{D['years'][1]} 年、{len(D['features_raw'])} 個候選特徵）</p>
+  <p>第二個資料集（互動探索器）：Kaggle「Predict the Flood」（Playground Series S4E5，{len(FS['features'])} 個特徵）</p>
   <p>作者：taemiyu　　日期：{esc(M['generated'][:10])}</p>
   <div class="box">
     <p>網頁報告：<a href="{VERCEL}">{VERCEL}</a></p>
@@ -274,11 +316,18 @@ a {{ color: #44604a; word-break: break-all; }}
 <li>Deployment 部署</li><li>結論、限制與未來改進</li><li>GPT 輔助內容</li><li>NotebookLM 摘要</li><li>參考資料</li></ol></div>
 
 <h2>1. 摘要</h2>
-<p>本報告以 Kaggle 的 WHO Life Expectancy 資料集（{D['rows']:,} 列、{D['cols']} 欄），依 CRISP-DM 六階段建立多元線性迴歸模型預測各國平均壽命。資料準備階段處理了大量缺值與不合理值（刪除 48% 錯誤的 BMI 欄、偏態變數取 log、同國中位數補值），並<b>依國家切分訓練／測試集</b>，避免同一國家的不同年份洩漏答案。以 Lasso、Forward SFS、RFE、ElasticNet 四種演算法搭配依國家分組的交叉驗證進行特徵選擇，依 1-SD 精簡原則選出 {FIN['k']} 個特徵：{esc('、'.join(FIN['features']))}。最終模型在 {P['test_countries']} 個模型沒看過的國家上達到 <b>R² {MET['R2']:.3f}、RMSE {MET['RMSE']:.2f} 歲</b>，95% 預測區間涵蓋 {MET['pi_coverage'] * 100:.1f}% 的實際值，三項成功標準全部通過。</p>
+<p>本報告以 Kaggle 的 WHO Life Expectancy 資料集（{D['rows']:,} 列、{D['cols']} 欄），依 CRISP-DM 六階段建立多元線性迴歸模型預測各國平均壽命。資料準備階段處理了大量缺值與不合理值（刪除 48% 錯誤的 BMI 欄、偏態變數取 log、同國中位數補值），並<b>依國家切分訓練／測試集</b>，避免同一國家的不同年份洩漏答案。以 Lasso、Forward SFS、RFE、ElasticNet 四種演算法搭配依國家分組的交叉驗證進行特徵選擇，依 1-SD 精簡原則選出 {FIN['k']} 個特徵：{esc('、'.join(FIN['features']))}。最終模型在 {P['test_countries']} 個模型沒看過的國家上達到 <b>R² {MET['R2']:.3f}、RMSE {MET['RMSE']:.2f} 歲</b>，95% 預測區間涵蓋 {MET['pi_coverage'] * 100:.1f}% 的實際值，三項成功標準全部通過。此外，互動探索器加入第二個特徵數大於 13 的 Kaggle 資料集「Predict the Flood」（{len(FS['features'])} 個特徵），全部特徵的 OLS 在測試集達到 R² {FS['r2']:.3f}（見 2.2 節）。</p>
 
 <h2>2. 資料集</h2>
+<h3>2.1 主資料集：Life Expectancy (WHO)</h3>
 <p>來源：<a href="{D['kaggle_url']}">{D['kaggle_url']}</a>（Kaggle，作者 KumarRajarshi；原始資料來自 WHO Global Health Observatory 與聯合國）。每列為一個國家在一個年份的資料，預測目標為平均壽命（Life expectancy，歲）。候選特徵共 {len(D['features_raw'])} 個（不含國家名稱與目標），符合作業「特徵數大於 13」的要求：</p>
 {feats}
+<h3>2.2 第二個 Kaggle 資料集：Predict the Flood（互動探索器）</h3>
+<p>來源：<a href="{FLOOD_URL}">{FLOOD_URL}</a>（Kaggle Playground Series Season 4 Episode 5，2024；以 Flood Prediction Factors 資料集為基礎產生的合成資料）。目標為洪水發生機率（FloodProbability，平均 {FS['y_mean']:.3f}、標準差 {FS['y_sd']:.3f}），候選特徵 {len(FS['features'])} 個，同樣符合「特徵數大於 13」：</p>
+<p class="eq">{esc('、'.join(FS['features']))}</p>
+<p>原始訓練資料有 1,117,957 列，超過瀏覽器端計算的上限，因此以隨機種子 42 抽樣 {FS['rows']:,} 列（<span class="eq">datasets/flood.csv</span>），抽樣後目標的平均與標準差和原始資料一致。資料沒有缺值，各特徵都是 0–16 的整數評分，不需要額外清理。</p>
+{flood_table}
+<p>上表為 Python（statsmodels）重算的結果，與探索器一致（探索器測試集 R² 0.844、5-fold CV R² 0.830）。20 個特徵的係數都為正且大小相近（{FS['coef_min']:.4f}–{FS['coef_max']:.4f}）{'，全部 p &lt; .001' if FS['all_sig'] else ''}，因此特徵選擇的 1-SD 原則會保留全部 20 個特徵：少用任何一個因子，誤差都會變大。這和 WHO 資料集「少數特徵就足夠」的結果形成對比。在探索器切換到這個資料集，可以看到特徵選擇比較、係數表，以及含信賴區間與預測區間的預測圖。</p>
 
 <h2 class="page">3. Business Understanding 商業理解</h2>
 <p><b>商業目標：</b>協助衛生政策分析者，從各國的健康、經濟與社會指標估計平均壽命，並找出最關鍵的指標。</p>
@@ -353,7 +402,7 @@ a {{ color: #44604a; word-break: break-all; }}
 <p><b>AI 協助的部分：</b>資料集挑選建議、資料清理與補值策略、CRISP-DM 程式（main.py、feature_progression_analysis.py）、瀏覽器端統計引擎與特徵選擇演算法、網頁版面與圖表、報告文字草稿。</p>
 <p><b>本人負責與確認的部分：</b></p>
 <ul><li><b>作業方向：</b>依作業要求提出需求，包括 CRISP-DM 流程、加分項目（資料集下拉選單、任意輸入資料集）、指定 Boston Housing 必須出現在選單中。</li>
-<li><b>資料集決定：</b>參考作業說明中提供的資料集清單與 Claude 的建議，選定 WHO Life Expectancy，並自行從 Kaggle 下載資料。</li>
+<li><b>資料集決定：</b>參考作業說明中提供的資料集清單與 Claude 的建議，選定 WHO Life Expectancy，並自行從 Kaggle 下載資料；之後再從作業清單選定第二個 Kaggle 資料集 Predict the Flood，自行接受競賽規則並下載。</li>
 <li><b>專案與部署：</b>建立 GitHub repository，將 HW2 與 HW1 分開管理；在 Vercel 與 GitHub Pages 完成部署設定。</li>
 <li><b>網站設計方向：</b>指定版面參考網站、選擇配色風格與黑貓元素，並多次檢視畫面、提出修改。</li>
 <li><b>研究：</b>使用 NotebookLM 整理同主題文獻並產生摘要。</li>
@@ -372,6 +421,7 @@ a {{ color: #44604a; word-break: break-all; }}
 
 <h2>12. 參考資料</h2><ol>
 <li>KumarRajarshi. Life Expectancy (WHO). Kaggle. <a href="{D['kaggle_url']}">{D['kaggle_url']}</a></li>
+<li>Kaggle. Predict the Flood（Playground Series Season 4, Episode 5）. <a href="{FLOOD_URL}">{FLOOD_URL}</a></li>
 <li>Chapman, P. et al. (2000). CRISP-DM 1.0: Step-by-step data mining guide.</li>
 <li>Pedregosa, F. et al. (2011). Scikit-learn: Machine Learning in Python. JMLR 12, 2825–2830.</li>
 <li>Seabold, S. &amp; Perktold, J. (2010). statsmodels: Econometric and statistical modeling with Python.</li>
