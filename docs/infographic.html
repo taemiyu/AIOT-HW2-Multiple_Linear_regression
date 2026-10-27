@@ -23,10 +23,10 @@ h1 { font-family: "Songti TC", "Noto Serif TC", serif; font-size: 40px; margin: 
 .kpi b { display: block; font-family: "Songti TC", "Noto Serif TC", serif; font-size: 30px; color: #44604a; }
 .take { background: #2e3a31; color: #fffdf7; border-radius: 16px; padding: 18px 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .take b { display: block; font-family: "Songti TC", "Noto Serif TC", serif; font-size: 20px; color: #e3eadb; margin-bottom: 4px; } .take p { margin: 0; font-size: 13.5px; line-height: 1.5; opacity: .9; }
-.foot { font-size: 12px; color: #687265; text-align: center; }
+.foot { font-size: 12px; line-height: 1.7; color: #687265; text-align: center; }
 </style></head><body><div class="wrap">
 <div><h1><svg viewBox="0 0 24 24" width="44" height="44" fill="#262826" aria-hidden="true"><path d="M4 11V3.5l4.6 3.6a9 9 0 0 1 6.8 0L20 3.5V11c.8 1.2 1.2 2.5 1.2 3.8 0 3.8-4.1 6.4-9.2 6.4s-9.2-2.6-9.2-6.4C2.8 13.5 3.2 12.2 4 11Z"/></svg>WHO 平均壽命預測：CRISP-DM 多元線性迴歸</h1>
-<div class="sub">AIoT HW2 · Kaggle Life Expectancy (WHO) · 2026-10-27</div></div>
+<div class="sub">AIoT HW2 · Kaggle Life Expectancy (WHO) · Predict the Flood · 2026-10-27</div></div>
 <div class="goal"><b>目標：</b>以 193 國、2000–2015 年的健康、經濟與社會指標，建立可解釋的多元線性迴歸模型，找出影響平均壽命的關鍵因子，並在「模型沒看過的國家」上評估預測能力與不確定性。</div>
 <div class="facts"><div><small>Dataset</small><b>Kaggle WHO</b></div><div><small>Records</small><b>2,938 × 22</b></div>
 <div><small>Features</small><b>20 → 19</b></div><div><small>Target</small><b>平均壽命（歲）</b></div><div><small>Model</small><b>OLS · 4 個特徵</b></div></div>
@@ -65,5 +65,5 @@ h1 { font-family: "Songti TC", "Noto Serif TC", serif; font-size: 40px; margin: 
 <div class="cols3"><div class="kpi"><small>內建資料集</small><b>6</b></div><div class="kpi"><small>特徵 &gt; 13 的 Kaggle 資料集</small><b>2</b></div><div class="kpi"><small>Flood 測試 R²</small><b>0.842</b></div></div></div></div></div>
 
 <div class="take"><div><b>R² 0.850</b><p>只用 4 個特徵，在 37 個沒看過的國家解釋 85% 的壽命差異</p></div><div><b>依國家切分</b><p>測試國家完全不在訓練集，避免同一國家洩漏答案</p></div><div><b>資料清理是關鍵</b><p>刪除 48% 錯誤的 BMI；同國中位數補值讓 R² 0.813 → 0.850</p></div><div><b>附預測區間</b><p>單一預測約 ±7 歲，93.4% 實際值落在 95% 區間內</p></div></div>
-<div class="foot">報告：https://aiot-hw2-multiple-linear-regression.vercel.app/ · 程式：https://github.com/taemiyu/AIOT-HW2-Multiple_Linear_regression</div>
+<div class="foot">資料來源：Life Expectancy (WHO) https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who<br>Predict the Flood https://www.kaggle.com/competitions/playground-series-s4e5<br>報告：https://aiot-hw2-multiple-linear-regression.vercel.app/ · 程式：https://github.com/taemiyu/AIOT-HW2-Multiple_Linear_regression</div>
 </div></body></html>

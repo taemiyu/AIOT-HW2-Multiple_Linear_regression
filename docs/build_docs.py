@@ -147,10 +147,10 @@ h1 {{ font-family: "Songti TC", "Noto Serif TC", serif; font-size: 40px; margin:
 .kpi b {{ display: block; font-family: "Songti TC", "Noto Serif TC", serif; font-size: 30px; color: #44604a; }}
 .take {{ background: #2e3a31; color: #fffdf7; border-radius: 16px; padding: 18px 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }}
 .take b {{ display: block; font-family: "Songti TC", "Noto Serif TC", serif; font-size: 20px; color: #e3eadb; margin-bottom: 4px; }} .take p {{ margin: 0; font-size: 13.5px; line-height: 1.5; opacity: .9; }}
-.foot {{ font-size: 12px; color: #687265; text-align: center; }}
+.foot {{ font-size: 12px; line-height: 1.7; color: #687265; text-align: center; }}
 </style></head><body><div class="wrap">
 <div><h1>{CAT.format(s=44)}WHO 平均壽命預測：CRISP-DM 多元線性迴歸</h1>
-<div class="sub">AIoT HW2 · Kaggle Life Expectancy (WHO) · {esc(M['generated'][:10])}</div></div>
+<div class="sub">AIoT HW2 · Kaggle Life Expectancy (WHO) · Predict the Flood · {esc(M['generated'][:10])}</div></div>
 <div class="goal"><b>目標：</b>以 {D['countries']} 國、{D['years'][0]}–{D['years'][1]} 年的健康、經濟與社會指標，建立可解釋的多元線性迴歸模型，找出影響平均壽命的關鍵因子，並在「模型沒看過的國家」上評估預測能力與不確定性。</div>
 <div class="facts"><div><small>Dataset</small><b>Kaggle WHO</b></div><div><small>Records</small><b>{D['rows']:,} × {D['cols']}</b></div>
 <div><small>Features</small><b>{len(D['features_raw'])} → {len(D['features'])}</b></div><div><small>Target</small><b>平均壽命（歲）</b></div><div><small>Model</small><b>OLS · {FIN['k']} 個特徵</b></div></div>
@@ -189,7 +189,7 @@ h1 {{ font-family: "Songti TC", "Noto Serif TC", serif; font-size: 40px; margin:
 <div class="cols3"><div class="kpi"><small>內建資料集</small><b>6</b></div><div class="kpi"><small>特徵 &gt; 13 的 Kaggle 資料集</small><b>2</b></div><div class="kpi"><small>Flood 測試 R²</small><b>{FS['r2']:.3f}</b></div></div></div></div></div>
 
 <div class="take">{''.join(f'<div><b>{esc(a)}</b><p>{esc(b)}</p></div>' for a, b in takeaways)}</div>
-<div class="foot">報告：{VERCEL} · 程式：{REPO}</div>
+<div class="foot">資料來源：Life Expectancy (WHO) {D['kaggle_url']}<br>Predict the Flood {FLOOD_URL}<br>報告：{VERCEL} · 程式：{REPO}</div>
 </div></body></html>"""
 
 
