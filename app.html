@@ -233,6 +233,7 @@ footer ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
       <div class="ds-row">
         <select class="big" id="dsSelect" aria-label="資料集">
           <option value="who">WHO Life Expectancy：預測各國平均壽命（HW2 主資料集）</option>
+          <option value="flood">Predict the Flood：預測洪水發生機率（Kaggle，20 個特徵）</option>
           <option value="startups">50 Startups：預測新創公司利潤</option>
           <option value="advertising">Advertising：預測廣告後的銷售量</option>
           <option value="insurance">Medical Insurance：預測醫療保險費</option>
@@ -390,6 +391,7 @@ footer ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
         <li>版面參考：<a href="https://huanchen1107.github.io/AIoT-DIC2-MultipleLR/" target="_blank" rel="noopener">AIoT-DIC2 Multiple LR Explorer</a></li>
         <li>統計計算機風格：<a href="https://statsunlock.com/multiple-linear-regression-calculator/" target="_blank" rel="noopener">StatsUnlock Multiple Linear Regression Calculator</a></li>
         <li>主資料集：<a href="https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who" target="_blank" rel="noopener">Life Expectancy (WHO)</a>（Kaggle，KumarRajarshi）</li>
+        <li>第二個 Kaggle 資料集：<a href="https://www.kaggle.com/competitions/playground-series-s4e5" target="_blank" rel="noopener">Predict the Flood</a>（Kaggle Playground Series S4E5，20 個特徵；隨機抽樣 5,000 列）</li>
         <li>其他資料集：50 Startups（Kaggle）、Advertising（<a href="https://www.statlearning.com/" target="_blank" rel="noopener">ISLR</a>）、Medical Insurance（<a href="https://github.com/stedy/Machine-Learning-with-R-datasets" target="_blank" rel="noopener">stedy/Machine-Learning-with-R-datasets</a>）、Boston Housing（Harrison &amp; Rubinfeld, 1978；檔案取自 <a href="https://github.com/selva86/datasets" target="_blank" rel="noopener">selva86/datasets</a>）</li>
         <li>方法論：CRISP-DM（Cross-Industry Standard Process for Data Mining）</li>
       </ul>
@@ -417,7 +419,10 @@ footer ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
   const BUILTIN = {
     who: { name: "WHO Life Expectancy", file: "datasets/who_prepared.csv", target: "Life expectancy", unit: "", suffix: " 歲", dec: 2,
       desc: "183 個國家 2000–2015 年的健康、經濟、社會指標 → 平均壽命（Kaggle）。已依 main.py 清理、log 轉換與補值，訓練／測試以國家分組切分",
-      preset: true, criteria: whoCriteria() },
+      preset: true, criteria: whoCriteria(), link: "https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who" },
+    flood: { name: "Predict the Flood", file: "datasets/flood.csv", target: "FloodProbability", unit: "", dec: 4,
+      desc: "季風強度、地形排水、森林砍伐、都市化、氣候變遷等 20 個因子（各為 0–16 的評分）→ 洪水發生機率。Kaggle Playground Series S4E5 的合成資料，原始 1,117,957 列，此處以隨機種子 42 抽樣 5,000 列",
+      link: "https://www.kaggle.com/competitions/playground-series-s4e5" },
     startups: { name: "50 Startups", file: "50_Startups.csv", target: "Profit", unit: "$",
       desc: "50 家新創公司的研發、行政、行銷支出與所在州 → 年利潤（Kaggle）" },
     advertising: { name: "Advertising", file: "datasets/Advertising.csv", target: "sales", unit: "",
@@ -638,7 +643,7 @@ footer ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
         st.k = Math.min(st.k, E.names.length);
         msg("ok", `已載入 ${ds.name}：${ds.rows.length.toLocaleString()} 列 × ${ds.header.length} 欄` + (dropped ? `，排除 ${dropped} 列有缺值的資料` : "") + (ds.skipped ? `，略過 ${ds.skipped} 列欄位數不符的資料` : "") +
           `。預測目標 ${ds.target}；${feats.length} 個候選特徵（編碼後 ${E.names.length} 欄）；訓練 ${train.length} 列、測試 ${test.length} 列` + (ds.preset ? "（與 main.py 相同、依國家分組的切分）" : "（隨機種子 42）") + "。");
-        $("dsDesc").textContent = ds.desc || ds.source;
+        $("dsDesc").replaceChildren(ds.desc || ds.source, ...(ds.link ? ["（來源：", h("a", { href: ds.link, target: "_blank", rel: "noopener" }, ds.link.replace(/^https:\/\/www\./, "")), "）"] : []));
         render();
       } catch (e) { msg("err", e.message); }
       finally { $("results").classList.remove("busy"); }

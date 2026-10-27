@@ -51,6 +51,8 @@
 
 ![探索器預測區間圖](docs/screenshots/explorer-intervals.jpg)
 
+**第二個 Kaggle 資料集**：下拉選單的「Predict the Flood」（[Kaggle Playground Series S4E5](https://www.kaggle.com/competitions/playground-series-s4e5)），以 20 個因子評分預測洪水發生機率。原始訓練資料有 1,117,957 列，超過瀏覽器端上限，因此以隨機種子 42 抽樣 5,000 列存成 `datasets/flood.csv`；全部 20 個特徵的 OLS 測試集 R² 約 0.84。
+
 **加分：任意輸入資料集**：輸入 CSV 網址（作業範例網址）或上傳 CSV 檔。
 
 ![輸入 CSV 網址](docs/screenshots/explorer-custom.jpg)
@@ -84,7 +86,7 @@ python docs/build_docs.py
 | CRISP-DM 六階段 | `main.py` 依六階段撰寫；網頁報告逐階段呈現 |
 | 選做：資訊圖表、報告書 | `docs/infographic.png`、`docs/infographic.pdf`、`docs/HW2_report.pdf` |
 | GPT 輔助內容、NotebookLM 摘要 | 網頁報告最後兩節：使用的 AI 工具（Claude、NotebookLM）與分工、NotebookLM 摘要與來源 |
-| 加分：下拉選單呈現兩種以上 problem | 探索器內建 5 個資料集：WHO Life Expectancy、50 Startups、Advertising、Medical Insurance、Boston Housing |
+| 加分：下拉選單呈現兩種以上 problem | 探索器內建 6 個資料集，其中兩個是特徵數 > 13 的 Kaggle 資料集：WHO Life Expectancy（20 個特徵）與 [Predict the Flood](https://www.kaggle.com/competitions/playground-series-s4e5)（20 個特徵）；另有 50 Startups、Advertising、Medical Insurance、Boston Housing |
 | 加分：可任意輸入 Dataset | 探索器可輸入 CSV 網址或上傳 CSV 檔 |
 
 ## 結果摘要
@@ -124,6 +126,7 @@ main.py                              CRISP-DM 六階段主程式
 feature_progression_analysis.py      特徵選擇演算法 × k = 1～p
 datasets/LifeExpectancy_WHO.csv      Kaggle 原始資料
 datasets/who_prepared.csv            main.py 清理與補值後的資料（網頁使用）
+datasets/flood.csv                   Predict the Flood（Kaggle）抽樣 5,000 列
 datasets/                            探索器的其他內建資料集
 index.html                           HW2 專案報告（網頁）
 app.html                             多元迴歸探索器
@@ -165,6 +168,7 @@ python3 -m http.server 8000
 - **資料集**：[Life Expectancy (WHO)](https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who)，Kaggle，KumarRajarshi；原始資料來自 WHO Global Health Observatory 與聯合國。
 - **版面參考**：[AIoT-DIC2 Multiple LR Explorer](https://huanchen1107.github.io/AIoT-DIC2-MultipleLR/)
 - **統計計算機風格**：[StatsUnlock — Multiple Linear Regression Calculator](https://statsunlock.com/multiple-linear-regression-calculator/)
+- **第二個 Kaggle 資料集**：[Predict the Flood](https://www.kaggle.com/competitions/playground-series-s4e5)，Kaggle Playground Series Season 4 Episode 5（2024），以 Flood Prediction Factors 資料集為基礎產生的合成資料；本專案只使用其中隨機抽樣的 5,000 列。
 - **探索器的其他資料集**：50 Startups（Kaggle）、Advertising（[ISLR](https://www.statlearning.com/)）、Medical Insurance（[stedy/Machine-Learning-with-R-datasets](https://github.com/stedy/Machine-Learning-with-R-datasets)）、Boston Housing（Harrison & Rubinfeld, 1978；[selva86/datasets](https://github.com/selva86/datasets)）
 - **方法論**：Chapman, P. et al. (2000). *CRISP-DM 1.0: Step-by-step data mining guide*.
 - **套件**：scikit-learn、statsmodels、SciPy、pandas、NumPy、Matplotlib、joblib
