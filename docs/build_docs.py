@@ -3,8 +3,9 @@ Build the infographic (PNG) and the written report (PDF) from model_data.json.
 
     python docs/build_docs.py
 
-Writes docs/infographic.html -> docs/infographic.png and docs/report.html ->
-docs/HW2_report.pdf. Rendering uses headless Google Chrome (set CHROME to
+Writes docs/infographic.html -> docs/infographic.png / docs/infographic.pdf and
+docs/report.html -> docs/HW2_report.pdf; section 2.2 is computed from
+datasets/flood.csv. Rendering uses headless Google Chrome (set CHROME to
 override the path). Run main.py first so model_data.json and the figures in
 crispdm_output/ are up to date.
 """

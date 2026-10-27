@@ -1,13 +1,13 @@
 # AIoT HW2：WHO 平均壽命多元線性迴歸（CRISP-DM）
 
-以 Kaggle「**Life Expectancy (WHO)**」資料集（193 國、2000–2015 年、20 個候選特徵），依 **CRISP-DM** 六階段建立多元線性迴歸模型：資料清理、特徵選擇、模型評估，並提供含 **95% 信賴區間與預測區間** 的預測圖。網站另附一個互動式多元迴歸探索器，可切換資料集與特徵選擇演算法，也能輸入任意 CSV。
+以 Kaggle「**Life Expectancy (WHO)**」資料集（193 國、2000–2015 年、20 個候選特徵），依 **CRISP-DM** 六階段建立多元線性迴歸模型：資料清理、特徵選擇、模型評估，並提供含 **95% 信賴區間與預測區間** 的預測圖。網站另附一個互動式多元迴歸探索器，內建 6 個資料集，其中包含第二個特徵數大於 13 的 Kaggle 資料集「**Predict the Flood**」（20 個特徵，預測洪水發生機率）。探索器可切換資料集與特徵選擇演算法，也能輸入任意 CSV 網址或上傳檔案。
 
 ## Demo
 
 | 頁面 | 說明 | Vercel | GitHub Pages |
 |---|---|---|---|
 | HW2 專案報告 | CRISP-DM 六階段完整報告 | https://aiot-hw2-multiple-linear-regression.vercel.app/ | https://taemiyu.github.io/AIOT-HW2-Multiple_Linear_regression/ |
-| 多元迴歸探索器 | 切換資料集／演算法、輸入網址或上傳 CSV，即時計算 | https://aiot-hw2-multiple-linear-regression.vercel.app/app | https://taemiyu.github.io/AIOT-HW2-Multiple_Linear_regression/app.html |
+| 多元迴歸探索器 | 6 個內建資料集（含 WHO 與 Predict the Flood）、切換演算法、輸入網址或上傳 CSV，即時計算 | https://aiot-hw2-multiple-linear-regression.vercel.app/app | https://taemiyu.github.io/AIOT-HW2-Multiple_Linear_regression/app.html |
 
 兩個網站內容相同，push 到 `main` 後都會自動更新。
 
@@ -70,7 +70,7 @@
 
 ![HW2 資訊圖表](docs/infographic.png)
 
-兩者由 `docs/build_docs.py` 依 `model_data.json` 自動產生（需安裝 Google Chrome）：
+兩者由 `docs/build_docs.py` 依 `model_data.json` 與 `datasets/flood.csv` 自動產生（需安裝 Google Chrome）：
 
 ```bash
 python docs/build_docs.py
