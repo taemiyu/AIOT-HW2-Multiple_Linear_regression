@@ -198,26 +198,96 @@ FLOOD_URL = "https://www.kaggle.com/competitions/playground-series-s4e5"
 
 
 def flood_summary():
-    """OLS on the 5,000-row Predict the Flood sample (second Kaggle dataset in the explorer)."""
+    """CRISP-DM numbers and figures for the 5,000-row Predict the Flood sample (second Kaggle dataset).
+
+    Writes docs/figures/flood_*.png for the report's Flood section.
+    """
     import numpy as np
     import pandas as pd
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
     import statsmodels.api as sm
     from sklearn.linear_model import LinearRegression
     from sklearn.model_selection import KFold, cross_val_score, train_test_split
+    from statsmodels.stats.diagnostic import het_breuschpagan, linear_reset
+    from statsmodels.stats.outliers_influence import variance_inflation_factor
+    from statsmodels.stats.stattools import durbin_watson, jarque_bera
+
     df = pd.read_csv(ROOT / "datasets" / "flood.csv")
     X, y = df.drop(columns="FloodProbability"), df["FloodProbability"]
     Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Forward selection on the training set: 5-fold CV RMSE for k = 1..p, then the 1-SD rule.
+    folds = list(KFold(5, shuffle=True, random_state=42).split(Xtr))
+
+    def cv_rmse(cols):
+        errs = []
+        for a, b in folds:
+            A, B = np.c_[np.ones(len(a)), Xtr.iloc[a][cols]], np.c_[np.ones(len(b)), Xtr.iloc[b][cols]]
+            beta = np.linalg.lstsq(A, ytr.iloc[a], rcond=None)[0]
+            errs.append(np.sqrt(np.mean((ytr.iloc[b] - B @ beta) ** 2)))
+        return float(np.mean(errs)), float(np.std(errs))
+
+    chosen, rest, prog = [], list(X.columns), []
+    while rest:
+        nxt = min(rest, key=lambda c: cv_rmse(chosen + [c])[0])
+        chosen.append(nxt); rest.remove(nxt)
+        prog.append((len(chosen), nxt) + cv_rmse(chosen))
+    best = min(prog, key=lambda r: r[2])
+    k_1sd = min(r[0] for r in prog if r[2] <= best[2] + best[3])
+
     fit = sm.OLS(ytr, sm.add_constant(Xtr)).fit()
     fr = fit.get_prediction(sm.add_constant(Xte)).summary_frame(alpha=0.05)
-    err = yte.to_numpy() - fr["mean"].to_numpy()
+    pred = fr["mean"].to_numpy()
+    err = yte.to_numpy() - pred
     cv = cross_val_score(LinearRegression(), X, y, cv=KFold(5, shuffle=True, random_state=42), scoring="r2")
     coef = fit.params.drop("const")
+    Xc = sm.add_constant(Xtr)
+    total_tr, total_te = Xtr.sum(axis=1), Xte.sum(axis=1)
+    simple = sm.OLS(ytr, sm.add_constant(total_tr)).fit()
+    simple_pred = simple.predict(sm.add_constant(total_te))
+    pi_cov = float(((yte >= fr["obs_ci_lower"]) & (yte <= fr["obs_ci_upper"])).mean())
+
+    fig_dir = DOCS / "figures"
+    fig_dir.mkdir(exist_ok=True)
+    ks = [r[0] for r in prog]
+    fig, ax = plt.subplots(figsize=(10, 4.2))
+    ax.errorbar(ks, [r[2] for r in prog], yerr=[r[3] for r in prog], color="#56755b", marker="o", ms=4, capsize=3, label="CV RMSE ± 1 SD")
+    ax.axhline(best[2] + best[3], color="#c08a4b", ls="--", lw=1, label="1-SD threshold")
+    ax.set_xticks(ks); ax.set_xlabel("Number of features k (forward selection order)"); ax.set_ylabel("5-fold CV RMSE (train)")
+    ax.set_title("Predict the Flood: forward selection - CV RMSE keeps falling up to k = 20"); ax.legend()
+    fig.tight_layout(); fig.savefig(fig_dir / "flood_feature_selection.png", dpi=120); plt.close(fig)
+
+    order = np.argsort(pred)
+    xs = np.arange(len(order))
+    fig, ax = plt.subplots(figsize=(13, 6))
+    ax.fill_between(xs, fr["obs_ci_lower"].to_numpy()[order], fr["obs_ci_upper"].to_numpy()[order],
+                    color="tab:green", alpha=0.18, label="95% prediction interval")
+    ax.fill_between(xs, fr["mean_ci_lower"].to_numpy()[order], fr["mean_ci_upper"].to_numpy()[order],
+                    color="tab:green", alpha=0.45, label="95% confidence interval (mean)")
+    ax.plot(xs, pred[order], color="darkgreen", lw=1.5, label="Prediction")
+    ax.scatter(xs, yte.to_numpy()[order], s=6, color="tab:orange", label="Actual", zorder=3)
+    ax.set_title(f"Predict the Flood - test set: predictions with 95% intervals - PI coverage {pi_cov * 100:.1f}%")
+    ax.set_xlabel("Test observations, sorted by predicted flood probability")
+    ax.set_ylabel("FloodProbability")
+    ax.legend(loc="upper left")
+    fig.tight_layout(); fig.savefig(fig_dir / "flood_prediction_intervals.png", dpi=120); plt.close(fig)
+
     return {"rows": len(df), "features": list(X.columns), "train": len(Xtr), "test": len(Xte),
+            "x_min": int(X.min().min()), "x_max": int(X.max().max()), "y_min": y.min(), "y_max": y.max(),
+            "corr": X.corrwith(y).sort_values(ascending=False),
+            "prog": prog, "best_k": best[0], "k_1sd": k_1sd,
             "r2": 1 - (err ** 2).sum() / ((yte - yte.mean()) ** 2).sum(), "rmse": float(np.sqrt((err ** 2).mean())),
+            "mae": float(np.abs(err).mean()), "baseline_rmse": float(np.sqrt(np.mean((yte - ytr.mean()) ** 2))),
             "cv_mean": cv.mean(), "cv_sd": cv.std(), "y_mean": y.mean(), "y_sd": y.std(),
-            "pi_cov": float(((yte >= fr["obs_ci_lower"]) & (yte <= fr["obs_ci_upper"])).mean()),
-            "pi_half": float(((fr["obs_ci_upper"] - fr["obs_ci_lower"]) / 2).mean()),
-            "coef_min": coef.min(), "coef_max": coef.max(), "all_sig": bool((fit.pvalues.drop("const") < 0.001).all())}
+            "pi_cov": pi_cov, "pi_half": float(((fr["obs_ci_upper"] - fr["obs_ci_lower"]) / 2).mean()),
+            "ci_half": float(((fr["mean_ci_upper"] - fr["mean_ci_lower"]) / 2).mean()),
+            "coef_min": coef.min(), "coef_max": coef.max(), "all_sig": bool((fit.pvalues.drop("const") < 0.001).all()),
+            "max_vif": max(variance_inflation_factor(Xc.values, i) for i in range(1, Xc.shape[1])),
+            "bp_p": het_breuschpagan(fit.resid, fit.model.exog)[1], "jb_p": jarque_bera(fit.resid)[1],
+            "dw": durbin_watson(fit.resid), "reset_p": linear_reset(fit, power=2, use_f=True).pvalue,
+            "simple_r2": 1 - ((yte - simple_pred) ** 2).sum() / ((yte - yte.mean()) ** 2).sum()}
 
 
 FS = flood_summary()
@@ -275,6 +345,17 @@ def report():
         ["測試集 R²", f"{FS['r2']:.4f}"], ["測試集 RMSE", f"{FS['rmse']:.4f}"],
         ["5-fold CV R²", f"{FS['cv_mean']:.4f} ± {FS['cv_sd']:.3f}"],
         ["95% 預測區間涵蓋率", f"{FS['pi_cov'] * 100:.1f}%（平均約 ±{FS['pi_half']:.3f}）"]])
+    flood_eval = table(["指標", "結果"], [
+        ["測試集 R²", f"{FS['r2']:.4f}"], ["測試集 RMSE", f"{FS['rmse']:.4f}"], ["測試集 MAE", f"{FS['mae']:.4f}"],
+        ["只猜平均的基準 RMSE", f"{FS['baseline_rmse']:.4f}"], ["5-fold CV R²", f"{FS['cv_mean']:.4f} ± {FS['cv_sd']:.3f}"],
+        ["95% 預測區間涵蓋率", f"{FS['pi_cov'] * 100:.1f}%"]], (1,))
+    ok = lambda b: "通過" if b else "未通過"
+    flood_assume = table(["假設", "p 值／統計量", "結果"], [
+        ["線性（Ramsey RESET）", fp(FS["reset_p"]), ok(FS['reset_p'] > 0.05)],
+        ["同質變異（Breusch-Pagan）", fp(FS["bp_p"]), ok(FS['bp_p'] > 0.05)],
+        ["殘差常態（Jarque-Bera）", fp(FS["jb_p"]), ok(FS['jb_p'] > 0.05)],
+        ["誤差獨立（Durbin-Watson）", f"{FS['dw']:.3f}", ok(1.5 < FS['dw'] < 2.5)],
+        ["無共線性（最大 VIF）", f"{FS['max_vif']:.2f}", ok(FS['max_vif'] < 5)]], (1,))
     return f"""<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>HW2 報告書：WHO 平均壽命多元線性迴歸</title>
 <style>
 @page {{ size: A4; margin: 18mm 16mm 18mm; }}
@@ -314,10 +395,10 @@ a {{ color: #44604a; word-break: break-all; }}
 <div class="toc"><h2>目錄</h2><ol>
 <li>摘要</li><li>資料集</li><li>Business Understanding 商業理解</li><li>Data Understanding 資料理解</li>
 <li>Data Preparation 資料準備</li><li>Modeling 建模與特徵選擇</li><li>Evaluation 評估（含預測區間圖）</li>
-<li>Deployment 部署</li><li>結論、限制與未來改進</li><li>GPT 輔助內容</li><li>NotebookLM 摘要</li><li>參考資料</li></ol></div>
+<li>Deployment 部署</li><li>結論、限制與未來改進</li><li>第二個資料集：Predict the Flood 的 CRISP-DM（精簡版）</li><li>GPT 輔助內容</li><li>NotebookLM 摘要</li><li>參考資料</li></ol></div>
 
 <h2>1. 摘要</h2>
-<p>本報告以 Kaggle 的 WHO Life Expectancy 資料集（{D['rows']:,} 列、{D['cols']} 欄），依 CRISP-DM 六階段建立多元線性迴歸模型預測各國平均壽命。資料準備階段處理了大量缺值與不合理值（刪除 48% 錯誤的 BMI 欄、偏態變數取 log、同國中位數補值），並<b>依國家切分訓練／測試集</b>，避免同一國家的不同年份洩漏答案。以 Lasso、Forward SFS、RFE、ElasticNet 四種演算法搭配依國家分組的交叉驗證進行特徵選擇，依 1-SD 精簡原則選出 {FIN['k']} 個特徵：{esc('、'.join(FIN['features']))}。最終模型在 {P['test_countries']} 個模型沒看過的國家上達到 <b>R² {MET['R2']:.3f}、RMSE {MET['RMSE']:.2f} 歲</b>，95% 預測區間涵蓋 {MET['pi_coverage'] * 100:.1f}% 的實際值，三項成功標準全部通過。此外，互動探索器加入第二個特徵數大於 13 的 Kaggle 資料集「Predict the Flood」（{len(FS['features'])} 個特徵），全部特徵的 OLS 在測試集達到 R² {FS['r2']:.3f}（見 2.2 節）。</p>
+<p>本報告以 Kaggle 的 WHO Life Expectancy 資料集（{D['rows']:,} 列、{D['cols']} 欄），依 CRISP-DM 六階段建立多元線性迴歸模型預測各國平均壽命。資料準備階段處理了大量缺值與不合理值（刪除 48% 錯誤的 BMI 欄、偏態變數取 log、同國中位數補值），並<b>依國家切分訓練／測試集</b>，避免同一國家的不同年份洩漏答案。以 Lasso、Forward SFS、RFE、ElasticNet 四種演算法搭配依國家分組的交叉驗證進行特徵選擇，依 1-SD 精簡原則選出 {FIN['k']} 個特徵：{esc('、'.join(FIN['features']))}。最終模型在 {P['test_countries']} 個模型沒看過的國家上達到 <b>R² {MET['R2']:.3f}、RMSE {MET['RMSE']:.2f} 歲</b>，95% 預測區間涵蓋 {MET['pi_coverage'] * 100:.1f}% 的實際值，三項成功標準全部通過。此外，互動探索器加入第二個特徵數大於 13 的 Kaggle 資料集「Predict the Flood」（{len(FS['features'])} 個特徵），全部特徵的 OLS 在測試集達到 R² {FS['r2']:.3f}（見 2.2 節，完整流程見第 10 節）。</p>
 
 <h2>2. 資料集</h2>
 <h3>2.1 主資料集：Life Expectancy (WHO)</h3>
@@ -328,7 +409,7 @@ a {{ color: #44604a; word-break: break-all; }}
 <p class="eq">{esc('、'.join(FS['features']))}</p>
 <p>原始訓練資料有 1,117,957 列，超過瀏覽器端計算的上限，因此以隨機種子 42 抽樣 {FS['rows']:,} 列（<span class="eq">datasets/flood.csv</span>），抽樣後目標的平均與標準差和原始資料一致。資料沒有缺值，各特徵都是 0–16 的整數評分，不需要額外清理。</p>
 {flood_table}
-<p>上表為 Python（statsmodels）重算的結果，與探索器一致（探索器測試集 R² 0.844、5-fold CV R² 0.830）。20 個特徵的係數都為正且大小相近（{FS['coef_min']:.4f}–{FS['coef_max']:.4f}）{'，全部 p &lt; .001' if FS['all_sig'] else ''}，因此特徵選擇的 1-SD 原則會保留全部 20 個特徵：少用任何一個因子，誤差都會變大。這和 WHO 資料集「少數特徵就足夠」的結果形成對比。在探索器切換到這個資料集，可以看到特徵選擇比較、係數表，以及含信賴區間與預測區間的預測圖。</p>
+<p>上表為 Python（statsmodels）重算的結果，與探索器一致（探索器測試集 R² 0.844、5-fold CV R² 0.830）。20 個特徵的係數都為正且大小相近（{FS['coef_min']:.4f}–{FS['coef_max']:.4f}）{'，全部 p &lt; .001' if FS['all_sig'] else ''}，因此特徵選擇的 1-SD 原則會保留全部 20 個特徵：少用任何一個因子，誤差都會變大。這和 WHO 資料集「少數特徵就足夠」的結果形成對比。在探索器切換到這個資料集，可以看到特徵選擇比較、係數表，以及含信賴區間與預測區間的預測圖。依 CRISP-DM 六階段的完整說明見第 10 節。</p>
 
 <h2 class="page">3. Business Understanding 商業理解</h2>
 <p><b>商業目標：</b>協助衛生政策分析者，從各國的健康、經濟與社會指標估計平均壽命，並找出最關鍵的指標。</p>
@@ -395,11 +476,33 @@ a {{ color: #44604a; word-break: break-all; }}
 <li>限制：資料有錯誤與大量缺值；相關不等於因果；OLS 假設未全部滿足；未納入環境污染等其他因子。</li>
 <li>未來改進：極端值縮尾處理、交互作用與非線性項、考慮國家內相關的混合效果模型，以及與隨機森林等非線性模型比較。</li></ul>
 
-<h2 class="page">10. GPT 輔助內容（AI 工具：Claude）</h2>
+<h2 class="page">10. 第二個資料集：Predict the Flood 的 CRISP-DM（精簡版）</h2>
+<p class="note">WHO 是本作業的主資料集（第 3–9 節）。本節用同樣的六個階段，精簡說明第二個 Kaggle 資料集的分析；數字由 Python（statsmodels、scikit-learn）重算，互動版本見探索器的「Predict the Flood」。</p>
+<h3>10.1 Business Understanding 商業理解</h3>
+<p><b>目標：</b>依 20 個洪水風險因子的評分，估計一個地區的洪水發生機率，並找出影響最大的因子。<b>問題：</b>（1）哪些因子最重要？（2）線性模型能預測多準？（3）單一預測的不確定性有多大？<b>評估方式：</b>以測試集 R²、RMSE 與「只猜平均」的基準比較，並用 5-fold CV 確認結果穩定。</p>
+<h3>10.2 Data Understanding 資料理解</h3>
+<p>抽樣後 {FS['rows']:,} 列、{len(FS['features'])} 個特徵，沒有缺值；每個特徵都是 {FS['x_min']}–{FS['x_max']} 的整數評分。目標 FloodProbability 介於 {FS['y_min']:.3f}–{FS['y_max']:.3f}（平均 {FS['y_mean']:.3f}、標準差 {FS['y_sd']:.3f}）。每個因子與目標的相關係數都只有 {FS['corr'].min():.2f}–{FS['corr'].max():.2f}（最高 {esc(FS['corr'].index[0])} r = {FS['corr'].iloc[0]:.3f}，最低 {esc(FS['corr'].index[-1])} r = {FS['corr'].iloc[-1]:.3f}），沒有單一主導的因子。這是 Kaggle 依 Flood Prediction Factors 資料集產生的合成資料。</p>
+<h3>10.3 Data Preparation 資料準備</h3>
+<ol><li>刪除流水號 id 欄。</li>
+<li>原始 1,117,957 列超過瀏覽器端上限，以隨機種子 42 抽樣 {FS['rows']:,} 列；抽樣後目標的平均與標準差和原始資料一致。</li>
+<li>沒有缺值或不合理值，所有特徵已是數值評分，不需要補值、編碼或取 log。</li>
+<li>隨機 80/20 切分（種子 42）：訓練 {FS['train']:,} 列、測試 {FS['test']:,} 列。每列是獨立樣本，沒有 WHO「同一國家重複出現」的問題，因此不需要分組切分。</li></ol>
+<h3>10.4 Modeling 建模與特徵選擇</h3>
+<p>最大 VIF 只有 {FS['max_vif']:.2f}，特徵之間幾乎互相獨立。以 Forward SFS 在訓練集計算 k = 1 到 {len(FS['features'])} 的 5-fold CV RMSE：k = 1 時為 {FS['prog'][0][2]:.4f}，之後每多一個特徵誤差都再下降，到 k = {len(FS['features'])} 時為 {FS['prog'][-1][2]:.4f}。CV 最佳是 k = {FS['best_k']}，依 1-SD 精簡原則也是 k = {FS['k_1sd']}，所以最終模型為<b>全部 {len(FS['features'])} 個特徵的 OLS</b>。係數全部為正且大小相近（{FS['coef_min']:.4f}–{FS['coef_max']:.4f}）{'，全部 p &lt; .001' if FS['all_sig'] else ''}：任一因子的評分每增加 1 分，洪水機率約增加 0.5 個百分點。</p>
+{fig('figures/flood_feature_selection.png', '圖 9　Predict the Flood：Forward SFS 的 5-fold CV RMSE 對特徵數（誤差棒為 ±1 SD，虛線為 1-SD 門檻）', '90%')}
+<h3>10.5 Evaluation 評估</h3>
+{flood_eval}
+{fig('figures/flood_prediction_intervals.png', f"圖 10　Predict the Flood 測試集預測值（依預測值排序）與 95% 信賴區間（深色，平均約 ±{FS['ci_half']:.4f}）、95% 預測區間（淺色，平均約 ±{FS['pi_half']:.3f}）。實際值有 {FS['pi_cov'] * 100:.1f}% 落在預測區間內。")}
+{flood_assume}
+<p>RMSE 從只猜平均的 {FS['baseline_rmse']:.4f} 降到 {FS['rmse']:.4f}，預測區間涵蓋率接近 95%。殘差有異質變異、非常態，RESET 也顯示有輕微的非線性：洪水機率在極高與極低端較平緩。另外，只用「20 個因子評分的加總」做單純線性迴歸，測試集 R² 就有 {FS['simple_r2']:.3f}，表示洪水機率主要取決於總風險分數，各因子的貢獻大致相同。</p>
+<h3>10.6 Deployment 部署</h3>
+<p>部署於互動探索器：資料集選單選「Predict the Flood」，即可在瀏覽器中重跑特徵選擇、查看係數表、假設檢定與含信賴區間、預測區間的預測圖，並用滑桿即時預測。<b>限制：</b>這是合成資料，結論不能直接套用到真實地區；實際應用需要以真實觀測資料重新訓練，並持續監控預測區間的涵蓋率。<b>未來改進：</b>加入總分的二次項或改用非線性模型，處理兩端較平緩的關係。</p>
+
+<h2 class="page">11. GPT 輔助內容（AI 工具：Claude）</h2>
 <p>依作業規定標示：以下列出本專案中由生成式 AI 工具協助完成的部分；與 AI 的完整對話紀錄另以 PDF 繳交。</p>
 <p><b>使用的 AI 工具：</b></p>
 <ul><li><b>Claude（Claude Code）</b>：主要開發工具，負責程式撰寫、資料分析、網頁製作與報告文字草稿（含本報告書）。</li>
-<li><b>NotebookLM</b>：研究網路上同主題的解法並產生摘要（見第 11 節）。</li></ul>
+<li><b>NotebookLM</b>：研究網路上同主題的解法並產生摘要（見第 12 節）。</li></ul>
 <p><b>AI 協助的部分：</b>資料集挑選建議、資料清理與補值策略、CRISP-DM 程式（main.py、feature_progression_analysis.py）、瀏覽器端統計引擎與特徵選擇演算法、網頁版面與圖表、報告文字草稿。</p>
 <p><b>本人負責與確認的部分：</b></p>
 <ul><li><b>作業方向：</b>依作業要求提出需求，包括 CRISP-DM 流程、加分項目（資料集下拉選單、任意輸入資料集）、指定 Boston Housing 必須出現在選單中。</li>
@@ -410,7 +513,7 @@ a {{ color: #44604a; word-break: break-all; }}
 <li><b>檢查與確認：</b>檢視分析結果、網站與報告內容，決定最終繳交版本。</li></ul>
 <p><b>驗證方式：</b>網頁計算結果已與 Python（statsmodels、scikit-learn）逐項比對一致。</p>
 
-<h2>11. NotebookLM 摘要</h2>
+<h2>12. NotebookLM 摘要</h2>
 <p>使用 NotebookLM 研究網路上同主題（WHO Life Expectancy 迴歸分析）的解法後產生的摘要：</p>
 <blockquote><b>資料清理</b>多採用插值法填補缺漏值、縮尾處理（Winsorization）極端值，並校正數據末端零被截斷的錯誤。<b>核心預測因子</b>包含成人死亡率、受教育年數、HIV/AIDS 死亡率、資源收入組成（HDI）及疫苗覆蓋率。<b>使用模型</b>涵蓋多元線性迴歸、Ridge 與 Lasso 正則化模型及隨機森林；其中隨機森林與二次多項式迴歸<b>評估結果</b>最佳（R² 達 0.92 以上）。<b>常見限制</b>則為原始資料缺漏率高、變數間存在高度共線性，以及未納入環境污染等潛在因子。</blockquote>
 <h3>NotebookLM 使用的來源</h3><ol>{''.join(f'<li>{esc(t)}：<a href="{u}">{u}</a></li>' for t, u in nb_sources)}</ol>
@@ -420,14 +523,14 @@ a {{ color: #44604a; word-break: break-all; }}
 <li><b>模型選擇：</b>隨機森林與多項式迴歸分數較高但不再是線性模型、較難解釋；本專案依作業要求使用線性迴歸，並以 Ridge／Lasso 確認正則化沒有明顯改善。</li>
 <li><b>資料清理：</b>文獻用插值與縮尾處理；本專案用同國中位數補值、刪除錯誤過多的 BMI 欄、偏態變數取 log。縮尾處理與非線性項可列為後續改進方向。</li></ul>
 
-<h2>12. 參考資料</h2><ol>
+<h2>13. 參考資料</h2><ol>
 <li>KumarRajarshi. Life Expectancy (WHO). Kaggle. <a href="{D['kaggle_url']}">{D['kaggle_url']}</a></li>
 <li>Kaggle. Predict the Flood（Playground Series Season 4, Episode 5）. <a href="{FLOOD_URL}">{FLOOD_URL}</a></li>
 <li>Chapman, P. et al. (2000). CRISP-DM 1.0: Step-by-step data mining guide.</li>
 <li>Pedregosa, F. et al. (2011). Scikit-learn: Machine Learning in Python. JMLR 12, 2825–2830.</li>
 <li>Seabold, S. &amp; Perktold, J. (2010). statsmodels: Econometric and statistical modeling with Python.</li>
 <li>版面參考：AIoT-DIC2 Multiple LR Explorer <a href="https://huanchen1107.github.io/AIoT-DIC2-MultipleLR/">https://huanchen1107.github.io/AIoT-DIC2-MultipleLR/</a>；StatsUnlock Multiple Linear Regression Calculator <a href="https://statsunlock.com/multiple-linear-regression-calculator/">https://statsunlock.com/multiple-linear-regression-calculator/</a></li>
-<li>第 11 節所列 NotebookLM 來源。</li></ol>
+<li>第 12 節所列 NotebookLM 來源。</li></ol>
 </body></html>"""
 
 

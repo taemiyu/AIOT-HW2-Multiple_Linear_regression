@@ -37,10 +37,10 @@ a { color: #44604a; word-break: break-all; }
 <div class="toc"><h2>目錄</h2><ol>
 <li>摘要</li><li>資料集</li><li>Business Understanding 商業理解</li><li>Data Understanding 資料理解</li>
 <li>Data Preparation 資料準備</li><li>Modeling 建模與特徵選擇</li><li>Evaluation 評估（含預測區間圖）</li>
-<li>Deployment 部署</li><li>結論、限制與未來改進</li><li>GPT 輔助內容</li><li>NotebookLM 摘要</li><li>參考資料</li></ol></div>
+<li>Deployment 部署</li><li>結論、限制與未來改進</li><li>第二個資料集：Predict the Flood 的 CRISP-DM（精簡版）</li><li>GPT 輔助內容</li><li>NotebookLM 摘要</li><li>參考資料</li></ol></div>
 
 <h2>1. 摘要</h2>
-<p>本報告以 Kaggle 的 WHO Life Expectancy 資料集（2,938 列、22 欄），依 CRISP-DM 六階段建立多元線性迴歸模型預測各國平均壽命。資料準備階段處理了大量缺值與不合理值（刪除 48% 錯誤的 BMI 欄、偏態變數取 log、同國中位數補值），並<b>依國家切分訓練／測試集</b>，避免同一國家的不同年份洩漏答案。以 Lasso、Forward SFS、RFE、ElasticNet 四種演算法搭配依國家分組的交叉驗證進行特徵選擇，依 1-SD 精簡原則選出 4 個特徵：Income composition of resources、log HIV/AIDS、Adult Mortality、Diphtheria。最終模型在 37 個模型沒看過的國家上達到 <b>R² 0.850、RMSE 3.75 歲</b>，95% 預測區間涵蓋 93.4% 的實際值，三項成功標準全部通過。此外，互動探索器加入第二個特徵數大於 13 的 Kaggle 資料集「Predict the Flood」（20 個特徵），全部特徵的 OLS 在測試集達到 R² 0.842（見 2.2 節）。</p>
+<p>本報告以 Kaggle 的 WHO Life Expectancy 資料集（2,938 列、22 欄），依 CRISP-DM 六階段建立多元線性迴歸模型預測各國平均壽命。資料準備階段處理了大量缺值與不合理值（刪除 48% 錯誤的 BMI 欄、偏態變數取 log、同國中位數補值），並<b>依國家切分訓練／測試集</b>，避免同一國家的不同年份洩漏答案。以 Lasso、Forward SFS、RFE、ElasticNet 四種演算法搭配依國家分組的交叉驗證進行特徵選擇，依 1-SD 精簡原則選出 4 個特徵：Income composition of resources、log HIV/AIDS、Adult Mortality、Diphtheria。最終模型在 37 個模型沒看過的國家上達到 <b>R² 0.850、RMSE 3.75 歲</b>，95% 預測區間涵蓋 93.4% 的實際值，三項成功標準全部通過。此外，互動探索器加入第二個特徵數大於 13 的 Kaggle 資料集「Predict the Flood」（20 個特徵），全部特徵的 OLS 在測試集達到 R² 0.842（見 2.2 節，完整流程見第 10 節）。</p>
 
 <h2>2. 資料集</h2>
 <h3>2.1 主資料集：Life Expectancy (WHO)</h3>
@@ -51,7 +51,7 @@ a { color: #44604a; word-break: break-all; }
 <p class="eq">MonsoonIntensity、TopographyDrainage、RiverManagement、Deforestation、Urbanization、ClimateChange、DamsQuality、Siltation、AgriculturalPractices、Encroachments、IneffectiveDisasterPreparedness、DrainageSystems、CoastalVulnerability、Landslides、Watersheds、DeterioratingInfrastructure、PopulationScore、WetlandLoss、InadequatePlanning、PoliticalFactors</p>
 <p>原始訓練資料有 1,117,957 列，超過瀏覽器端計算的上限，因此以隨機種子 42 抽樣 5,000 列（<span class="eq">datasets/flood.csv</span>），抽樣後目標的平均與標準差和原始資料一致。資料沒有缺值，各特徵都是 0–16 的整數評分，不需要額外清理。</p>
 <table><thead><tr><th class="">項目</th><th class="">結果</th></tr></thead><tbody><tr><td class="">切分</td><td class="">隨機 80/20（種子 42）：訓練 4,000 列、測試 1,000 列</td></tr><tr><td class="">模型</td><td class="">OLS，全部 20 個特徵</td></tr><tr><td class="">測試集 R²</td><td class="">0.8421</td></tr><tr><td class="">測試集 RMSE</td><td class="">0.0206</td></tr><tr><td class="">5-fold CV R²</td><td class="">0.8323 ± 0.011</td></tr><tr><td class="">95% 預測區間涵蓋率</td><td class="">94.6%（平均約 ±0.040）</td></tr></tbody></table>
-<p>上表為 Python（statsmodels）重算的結果，與探索器一致（探索器測試集 R² 0.844、5-fold CV R² 0.830）。20 個特徵的係數都為正且大小相近（0.0052–0.0059），全部 p &lt; .001，因此特徵選擇的 1-SD 原則會保留全部 20 個特徵：少用任何一個因子，誤差都會變大。這和 WHO 資料集「少數特徵就足夠」的結果形成對比。在探索器切換到這個資料集，可以看到特徵選擇比較、係數表，以及含信賴區間與預測區間的預測圖。</p>
+<p>上表為 Python（statsmodels）重算的結果，與探索器一致（探索器測試集 R² 0.844、5-fold CV R² 0.830）。20 個特徵的係數都為正且大小相近（0.0052–0.0059），全部 p &lt; .001，因此特徵選擇的 1-SD 原則會保留全部 20 個特徵：少用任何一個因子，誤差都會變大。這和 WHO 資料集「少數特徵就足夠」的結果形成對比。在探索器切換到這個資料集，可以看到特徵選擇比較、係數表，以及含信賴區間與預測區間的預測圖。依 CRISP-DM 六階段的完整說明見第 10 節。</p>
 
 <h2 class="page">3. Business Understanding 商業理解</h2>
 <p><b>商業目標：</b>協助衛生政策分析者，從各國的健康、經濟與社會指標估計平均壽命，並找出最關鍵的指標。</p>
@@ -118,11 +118,33 @@ a { color: #44604a; word-break: break-all; }
 <li>限制：資料有錯誤與大量缺值；相關不等於因果；OLS 假設未全部滿足；未納入環境污染等其他因子。</li>
 <li>未來改進：極端值縮尾處理、交互作用與非線性項、考慮國家內相關的混合效果模型，以及與隨機森林等非線性模型比較。</li></ul>
 
-<h2 class="page">10. GPT 輔助內容（AI 工具：Claude）</h2>
+<h2 class="page">10. 第二個資料集：Predict the Flood 的 CRISP-DM（精簡版）</h2>
+<p class="note">WHO 是本作業的主資料集（第 3–9 節）。本節用同樣的六個階段，精簡說明第二個 Kaggle 資料集的分析；數字由 Python（statsmodels、scikit-learn）重算，互動版本見探索器的「Predict the Flood」。</p>
+<h3>10.1 Business Understanding 商業理解</h3>
+<p><b>目標：</b>依 20 個洪水風險因子的評分，估計一個地區的洪水發生機率，並找出影響最大的因子。<b>問題：</b>（1）哪些因子最重要？（2）線性模型能預測多準？（3）單一預測的不確定性有多大？<b>評估方式：</b>以測試集 R²、RMSE 與「只猜平均」的基準比較，並用 5-fold CV 確認結果穩定。</p>
+<h3>10.2 Data Understanding 資料理解</h3>
+<p>抽樣後 5,000 列、20 個特徵，沒有缺值；每個特徵都是 0–16 的整數評分。目標 FloodProbability 介於 0.320–0.685（平均 0.505、標準差 0.050）。每個因子與目標的相關係數都只有 0.16–0.21（最高 DamsQuality r = 0.214，最低 IneffectiveDisasterPreparedness r = 0.162），沒有單一主導的因子。這是 Kaggle 依 Flood Prediction Factors 資料集產生的合成資料。</p>
+<h3>10.3 Data Preparation 資料準備</h3>
+<ol><li>刪除流水號 id 欄。</li>
+<li>原始 1,117,957 列超過瀏覽器端上限，以隨機種子 42 抽樣 5,000 列；抽樣後目標的平均與標準差和原始資料一致。</li>
+<li>沒有缺值或不合理值，所有特徵已是數值評分，不需要補值、編碼或取 log。</li>
+<li>隨機 80/20 切分（種子 42）：訓練 4,000 列、測試 1,000 列。每列是獨立樣本，沒有 WHO「同一國家重複出現」的問題，因此不需要分組切分。</li></ol>
+<h3>10.4 Modeling 建模與特徵選擇</h3>
+<p>最大 VIF 只有 1.01，特徵之間幾乎互相獨立。以 Forward SFS 在訓練集計算 k = 1 到 20 的 5-fold CV RMSE：k = 1 時為 0.0484，之後每多一個特徵誤差都再下降，到 k = 20 時為 0.0204。CV 最佳是 k = 20，依 1-SD 精簡原則也是 k = 20，所以最終模型為<b>全部 20 個特徵的 OLS</b>。係數全部為正且大小相近（0.0052–0.0059），全部 p &lt; .001：任一因子的評分每增加 1 分，洪水機率約增加 0.5 個百分點。</p>
+<figure><img src="figures/flood_feature_selection.png" style="width:90%"><figcaption>圖 9　Predict the Flood：Forward SFS 的 5-fold CV RMSE 對特徵數（誤差棒為 ±1 SD，虛線為 1-SD 門檻）</figcaption></figure>
+<h3>10.5 Evaluation 評估</h3>
+<table><thead><tr><th class="">指標</th><th class="n">結果</th></tr></thead><tbody><tr><td class="">測試集 R²</td><td class="n">0.8421</td></tr><tr><td class="">測試集 RMSE</td><td class="n">0.0206</td></tr><tr><td class="">測試集 MAE</td><td class="n">0.0162</td></tr><tr><td class="">只猜平均的基準 RMSE</td><td class="n">0.0519</td></tr><tr><td class="">5-fold CV R²</td><td class="n">0.8323 ± 0.011</td></tr><tr><td class="">95% 預測區間涵蓋率</td><td class="n">94.6%</td></tr></tbody></table>
+<figure><img src="figures/flood_prediction_intervals.png" style="width:100%"><figcaption>圖 10　Predict the Flood 測試集預測值（依預測值排序）與 95% 信賴區間（深色，平均約 ±0.0028）、95% 預測區間（淺色，平均約 ±0.040）。實際值有 94.6% 落在預測區間內。</figcaption></figure>
+<table><thead><tr><th class="">假設</th><th class="n">p 值／統計量</th><th class="">結果</th></tr></thead><tbody><tr><td class="">線性（Ramsey RESET）</td><td class="n">.001</td><td class="">未通過</td></tr><tr><td class="">同質變異（Breusch-Pagan）</td><td class="n">< .001</td><td class="">未通過</td></tr><tr><td class="">殘差常態（Jarque-Bera）</td><td class="n">< .001</td><td class="">未通過</td></tr><tr><td class="">誤差獨立（Durbin-Watson）</td><td class="n">2.029</td><td class="">通過</td></tr><tr><td class="">無共線性（最大 VIF）</td><td class="n">1.01</td><td class="">通過</td></tr></tbody></table>
+<p>RMSE 從只猜平均的 0.0519 降到 0.0206，預測區間涵蓋率接近 95%。殘差有異質變異、非常態，RESET 也顯示有輕微的非線性：洪水機率在極高與極低端較平緩。另外，只用「20 個因子評分的加總」做單純線性迴歸，測試集 R² 就有 0.841，表示洪水機率主要取決於總風險分數，各因子的貢獻大致相同。</p>
+<h3>10.6 Deployment 部署</h3>
+<p>部署於互動探索器：資料集選單選「Predict the Flood」，即可在瀏覽器中重跑特徵選擇、查看係數表、假設檢定與含信賴區間、預測區間的預測圖，並用滑桿即時預測。<b>限制：</b>這是合成資料，結論不能直接套用到真實地區；實際應用需要以真實觀測資料重新訓練，並持續監控預測區間的涵蓋率。<b>未來改進：</b>加入總分的二次項或改用非線性模型，處理兩端較平緩的關係。</p>
+
+<h2 class="page">11. GPT 輔助內容（AI 工具：Claude）</h2>
 <p>依作業規定標示：以下列出本專案中由生成式 AI 工具協助完成的部分；與 AI 的完整對話紀錄另以 PDF 繳交。</p>
 <p><b>使用的 AI 工具：</b></p>
 <ul><li><b>Claude（Claude Code）</b>：主要開發工具，負責程式撰寫、資料分析、網頁製作與報告文字草稿（含本報告書）。</li>
-<li><b>NotebookLM</b>：研究網路上同主題的解法並產生摘要（見第 11 節）。</li></ul>
+<li><b>NotebookLM</b>：研究網路上同主題的解法並產生摘要（見第 12 節）。</li></ul>
 <p><b>AI 協助的部分：</b>資料集挑選建議、資料清理與補值策略、CRISP-DM 程式（main.py、feature_progression_analysis.py）、瀏覽器端統計引擎與特徵選擇演算法、網頁版面與圖表、報告文字草稿。</p>
 <p><b>本人負責與確認的部分：</b></p>
 <ul><li><b>作業方向：</b>依作業要求提出需求，包括 CRISP-DM 流程、加分項目（資料集下拉選單、任意輸入資料集）、指定 Boston Housing 必須出現在選單中。</li>
@@ -133,7 +155,7 @@ a { color: #44604a; word-break: break-all; }
 <li><b>檢查與確認：</b>檢視分析結果、網站與報告內容，決定最終繳交版本。</li></ul>
 <p><b>驗證方式：</b>網頁計算結果已與 Python（statsmodels、scikit-learn）逐項比對一致。</p>
 
-<h2>11. NotebookLM 摘要</h2>
+<h2>12. NotebookLM 摘要</h2>
 <p>使用 NotebookLM 研究網路上同主題（WHO Life Expectancy 迴歸分析）的解法後產生的摘要：</p>
 <blockquote><b>資料清理</b>多採用插值法填補缺漏值、縮尾處理（Winsorization）極端值，並校正數據末端零被截斷的錯誤。<b>核心預測因子</b>包含成人死亡率、受教育年數、HIV/AIDS 死亡率、資源收入組成（HDI）及疫苗覆蓋率。<b>使用模型</b>涵蓋多元線性迴歸、Ridge 與 Lasso 正則化模型及隨機森林；其中隨機森林與二次多項式迴歸<b>評估結果</b>最佳（R² 達 0.92 以上）。<b>常見限制</b>則為原始資料缺漏率高、變數間存在高度共線性，以及未納入環境污染等潛在因子。</blockquote>
 <h3>NotebookLM 使用的來源</h3><ol><li>Kaggle：Life Expectancy (WHO) 資料集頁面：<a href="https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who">https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who</a></li><li>Kaggle：WHO Life Expectancy - Multi Linear Regression：<a href="https://www.kaggle.com/code/captainozlem/who-life-expectancy-multi-linear-regression">https://www.kaggle.com/code/captainozlem/who-life-expectancy-multi-linear-regression</a></li><li>Kaggle：(Detailed) REGRESSION PROJECT on Life Expectancy：<a href="https://www.kaggle.com/code/ecedolen/detailed-regression-project-on-life-expectancy">https://www.kaggle.com/code/ecedolen/detailed-regression-project-on-life-expectancy</a></li><li>Enjoy Algorithms：Life Expectancy Prediction Using Machine Learning：<a href="https://www.enjoyalgorithms.com/blog/life-expectancy-prediction-using-linear-regression/">https://www.enjoyalgorithms.com/blog/life-expectancy-prediction-using-linear-regression/</a></li><li>NYC Data Science Academy：Modeling Life Expectancy：<a href="https://nycdatascience.com/blog/student-works/life-expectancy-by-country/">https://nycdatascience.com/blog/student-works/life-expectancy-by-country/</a></li><li>CAUSE USCLAP：Analyzing Significant Predictors of Life Expectancy across Countries：<a href="https://www.causeweb.org/usproc/sites/default/files/usclap/2022-1/analyzing-significant-predictors-of-life-expectancy-across-countries.pdf">https://www.causeweb.org/usproc/sites/default/files/usclap/2022-1/analyzing-significant-predictors-of-life-expectancy-across-countries.pdf</a></li><li>arXiv 2510.00542：Interpretable Machine Learning for Life Expectancy Prediction: A Comparative Study of Linear Regression, Decision Tree, and Random Forest：<a href="https://arxiv.org/abs/2510.00542">https://arxiv.org/abs/2510.00542</a></li><li>iJOE（2022）：Life Expectancy Prediction through Analysis of Immunization and HDI Factors using Machine Learning Regression Algorithms：<a href="https://online-journals.org/index.php/i-joe/article/view/33315">https://online-journals.org/index.php/i-joe/article/view/33315</a></li><li>GitHub：frinkleko/Life-expectancy（Data mining group project）：<a href="https://github.com/frinkleko/life-expectancy">https://github.com/frinkleko/life-expectancy</a></li></ol>
@@ -143,12 +165,12 @@ a { color: #44604a; word-break: break-all; }
 <li><b>模型選擇：</b>隨機森林與多項式迴歸分數較高但不再是線性模型、較難解釋；本專案依作業要求使用線性迴歸，並以 Ridge／Lasso 確認正則化沒有明顯改善。</li>
 <li><b>資料清理：</b>文獻用插值與縮尾處理；本專案用同國中位數補值、刪除錯誤過多的 BMI 欄、偏態變數取 log。縮尾處理與非線性項可列為後續改進方向。</li></ul>
 
-<h2>12. 參考資料</h2><ol>
+<h2>13. 參考資料</h2><ol>
 <li>KumarRajarshi. Life Expectancy (WHO). Kaggle. <a href="https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who">https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who</a></li>
 <li>Kaggle. Predict the Flood（Playground Series Season 4, Episode 5）. <a href="https://www.kaggle.com/competitions/playground-series-s4e5">https://www.kaggle.com/competitions/playground-series-s4e5</a></li>
 <li>Chapman, P. et al. (2000). CRISP-DM 1.0: Step-by-step data mining guide.</li>
 <li>Pedregosa, F. et al. (2011). Scikit-learn: Machine Learning in Python. JMLR 12, 2825–2830.</li>
 <li>Seabold, S. &amp; Perktold, J. (2010). statsmodels: Econometric and statistical modeling with Python.</li>
 <li>版面參考：AIoT-DIC2 Multiple LR Explorer <a href="https://huanchen1107.github.io/AIoT-DIC2-MultipleLR/">https://huanchen1107.github.io/AIoT-DIC2-MultipleLR/</a>；StatsUnlock Multiple Linear Regression Calculator <a href="https://statsunlock.com/multiple-linear-regression-calculator/">https://statsunlock.com/multiple-linear-regression-calculator/</a></li>
-<li>第 11 節所列 NotebookLM 來源。</li></ol>
+<li>第 12 節所列 NotebookLM 來源。</li></ol>
 </body></html>
