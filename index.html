@@ -222,12 +222,21 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
       <div class="rail"><div class="dot">0</div></div>
       <div class="body">
         <header><span class="eyebrow">Phase 2.1 · Collect initial data</span><h2>資料來源</h2></header>
-        <div class="panel">
+        <div class="panel"><h3>主資料集：Life Expectancy (WHO)</h3>
           <ul class="clean">
             <li>資料集：<b>Life Expectancy (WHO)</b>，Kaggle，作者 KumarRajarshi：<a id="srcLink" target="_blank" rel="noopener" style="color:var(--ink-2);overflow-wrap:anywhere"></a></li>
             <li>原始資料來自世界衛生組織（WHO）Global Health Observatory 與聯合國的經濟資料，整理成每國每年一列。</li>
             <li>檔案：<span class="mono">datasets/LifeExpectancy_WHO.csv</span>（Kaggle 下載的 <span class="mono">Life Expectancy Data.csv</span>），<span id="srcShape"></span>。</li>
             <li>候選特徵（<span id="nFeatRaw"></span> 個，不含國家名稱與目標）：<span id="featRaw"></span></li>
+          </ul>
+        </div>
+        <div class="panel" style="margin-top:12px"><h3>第二個 Kaggle 資料集：Predict the Flood（互動探索器）</h3>
+          <ul class="clean">
+            <li>資料集：<b>Predict the Flood</b>，Kaggle Playground Series Season 4 Episode 5（2024）：<a href="https://www.kaggle.com/competitions/playground-series-s4e5" target="_blank" rel="noopener" style="color:var(--ink-2);overflow-wrap:anywhere">https://www.kaggle.com/competitions/playground-series-s4e5</a>。以 Flood Prediction Factors 資料集為基礎產生的合成資料。</li>
+            <li>目標：洪水發生機率 <span class="mono">FloodProbability</span>；候選特徵 <b>20 個</b>（季風強度、地形排水、森林砍伐、都市化、氣候變遷等，各為 0–16 的評分），同樣符合「特徵數大於 13」。</li>
+            <li>檔案：<span class="mono">datasets/flood.csv</span>。原始訓練資料 1,117,957 列超過瀏覽器端上限，以隨機種子 42 抽樣 5,000 列；沒有缺值。</li>
+            <li>結果：全部 20 個特徵的 OLS，測試集 R² 0.842、5-fold CV R² 0.832 ± 0.011、95% 預測區間涵蓋率 94.6%。20 個係數都為正且大小相近，所以 1-SD 原則保留全部特徵，和 WHO「少數特徵就足夠」形成對比。</li>
+            <li>在 <a href="app.html">多元迴歸探索器</a> 的資料集選單選「Predict the Flood」，即可查看特徵選擇比較、係數表與含信賴區間、預測區間的預測圖。</li>
           </ul>
         </div>
       </div>
@@ -356,7 +365,7 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
             <li><b>本人負責與確認的部分：</b>
               <ul class="clean" style="margin-top:4px">
                 <li><b>作業方向：</b>依作業要求提出需求，包括 CRISP-DM 流程、加分項目（資料集下拉選單、任意輸入資料集）、指定 Boston Housing 必須出現在選單中。</li>
-                <li><b>資料集決定：</b>參考作業說明中提供的資料集清單與 Claude 的建議，選定 WHO Life Expectancy，並自行從 Kaggle 下載資料。</li>
+                <li><b>資料集決定：</b>參考作業說明中提供的資料集清單與 Claude 的建議，選定 WHO Life Expectancy，並自行從 Kaggle 下載資料；之後再從作業清單選定第二個 Kaggle 資料集 Predict the Flood，自行接受競賽規則並下載。</li>
                 <li><b>專案與部署：</b>建立 GitHub repository，將 HW2 與 HW1 分開管理；在 Vercel 與 GitHub Pages 完成部署設定。</li>
                 <li><b>網站設計方向：</b>指定版面參考網站、選擇配色風格與黑貓元素，並多次檢視畫面、提出修改。</li>
                 <li><b>研究：</b>使用 NotebookLM 整理同主題文獻並產生摘要。</li>
