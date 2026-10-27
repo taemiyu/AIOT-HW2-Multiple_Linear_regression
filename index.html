@@ -181,6 +181,7 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
 .nb-quote { margin: 10px 0 0; padding: 12px 16px; background: var(--surface-2); border-radius: 8px; line-height: 1.8; }
 .nb-src { margin: 0; padding-left: 1.4em; display: grid; gap: 4px; font-size: 0.9rem; }
 .nb-src a { color: var(--ink-2); overflow-wrap: anywhere; }
+.entry .body a:not([style]):not([class]) { color: var(--ink-2); overflow-wrap: anywhere; }
 </style>
 
 </head>
@@ -236,7 +237,7 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
             <li>目標：洪水發生機率 <span class="mono">FloodProbability</span>；候選特徵 <b>20 個</b>（季風強度、地形排水、森林砍伐、都市化、氣候變遷等，各為 0–16 的評分），同樣符合「特徵數大於 13」。</li>
             <li>檔案：<span class="mono">datasets/flood.csv</span>。原始訓練資料 1,117,957 列超過瀏覽器端上限，以隨機種子 42 抽樣 5,000 列；沒有缺值。</li>
             <li>結果：全部 20 個特徵的 OLS，測試集 R² 0.842、5-fold CV R² 0.832 ± 0.011、95% 預測區間涵蓋率 94.6%。20 個係數都為正且大小相近，所以 1-SD 原則保留全部特徵，和 WHO「少數特徵就足夠」形成對比。</li>
-            <li>在 <a href="app.html">多元迴歸探索器</a> 的資料集選單選「Predict the Flood」，即可查看特徵選擇比較、係數表與含信賴區間、預測區間的預測圖。</li>
+            <li>依 CRISP-DM 六階段的精簡分析見下方<a href="#flood">「Predict the Flood：洪水發生機率」</a>一節；在 <a href="app.html">多元迴歸探索器</a> 的資料集選單選「Predict the Flood」，可互動查看特徵選擇比較、係數表與含信賴區間、預測區間的預測圖。</li>
           </ul>
         </div>
       </div>
@@ -346,6 +347,53 @@ figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
             <p class="note" style="margin-top:8px">Belgium 2014 年的實際值 89.0 歲明顯偏高（比利時實際約 81 歲），是原始資料的錯誤；模型預測 80.0 歲反而較合理。這也提醒資料品質檢查的重要。</p></div>
           <div class="panel"><h3>6.2 監控與維護計畫</h3><ul class="clean" id="monitor"></ul></div>
         </div>
+      </div>
+    </article>
+
+    <article class="entry" id="flood">
+      <div class="rail"><div class="dot">+</div></div>
+      <div class="body">
+        <header><span class="eyebrow">第二個 Kaggle 資料集 · CRISP-DM 精簡版</span><h2>Predict the Flood：洪水發生機率</h2></header>
+        <p class="note">WHO 是本作業的主資料集（Phase 1–6）。這一節用同樣的六個階段，精簡說明第二個 Kaggle 資料集 <a href="https://www.kaggle.com/competitions/playground-series-s4e5" target="_blank" rel="noopener">Predict the Flood</a> 的分析；數字由 Python（statsmodels、scikit-learn）計算，與報告書第 10 節相同。互動版本請在<a href="app.html">探索器</a>的資料集選單選「Predict the Flood」。</p>
+        <div class="grid2">
+          <div class="panel"><h3>1. Business Understanding 商業理解</h3><ul class="clean">
+            <li><b>目標：</b>依 20 個洪水風險因子的評分，估計一個地區的洪水發生機率，並找出影響最大的因子。</li>
+            <li><b>問題：</b>哪些因子最重要？線性模型能預測多準？單一預測的不確定性有多大？</li>
+            <li><b>評估方式：</b>測試集 R²、RMSE 與「只猜平均」的基準比較，並以 5-fold CV 確認結果穩定。</li></ul></div>
+          <div class="panel"><h3>2. Data Understanding 資料理解</h3><ul class="clean">
+            <li>抽樣後 5,000 列、20 個特徵，沒有缺值；每個特徵都是 0–16 的整數評分。</li>
+            <li>目標 FloodProbability 介於 0.320–0.685（平均 0.505、標準差 0.050）。</li>
+            <li>每個因子與目標的相關係數都只有 0.16–0.21（最高 DamsQuality r = 0.214），沒有單一主導的因子。</li>
+            <li>這是 Kaggle 依 Flood Prediction Factors 資料集產生的合成資料。</li></ul></div>
+          <div class="panel"><h3>3. Data Preparation 資料準備</h3><ul class="clean">
+            <li>刪除流水號 id 欄。</li>
+            <li>原始 1,117,957 列超過瀏覽器端上限，以隨機種子 42 抽樣 5,000 列；抽樣後目標的平均與標準差和原始資料一致。</li>
+            <li>沒有缺值或不合理值，不需要補值、編碼或取 log。</li>
+            <li>隨機 80/20 切分（種子 42）：訓練 4,000 列、測試 1,000 列。每列是獨立樣本，沒有「同一國家重複出現」的問題，因此不需要分組切分。</li></ul></div>
+          <div class="panel"><h3>4. Modeling 建模與特徵選擇</h3><ul class="clean">
+            <li>最大 VIF 只有 1.01，特徵之間幾乎互相獨立。</li>
+            <li>Forward SFS 的 5-fold CV RMSE 從 k = 1 的 0.0484，每多一個特徵都再下降，到 k = 20 為 0.0204；CV 最佳與 1-SD 原則都是 <b>k = 20</b>。</li>
+            <li>最終模型為<b>全部 20 個特徵的 OLS</b>：係數全部為正且大小相近（0.0052–0.0059），全部 p &lt; .001。任一因子的評分每增加 1 分，洪水機率約增加 0.5 個百分點。</li></ul></div>
+        </div>
+        <figure class="panel"><h3>特徵選擇：CV RMSE 對特徵數</h3><img src="docs/figures/flood_feature_selection.png" alt="Forward SFS 的 5-fold CV RMSE 隨特徵數增加持續下降，到 20 個特徵最低" loading="lazy" style="width:100%;border-radius:8px"><figcaption>誤差棒為 ±1 SD，虛線為 1-SD 門檻；只有 k = 20 落在門檻內。</figcaption></figure>
+        <figure class="panel"><h3>5. Evaluation 評估：預測圖（95% 信賴區間與預測區間）</h3><img src="docs/figures/flood_prediction_intervals.png" alt="Predict the Flood 測試集預測值、95% 信賴區間與預測區間，預測區間涵蓋 94.6% 的實際值" loading="lazy" style="width:100%;border-radius:8px"><figcaption>測試集 1,000 列依預測值排序。95% 信賴區間平均約 ±0.0028（深色），95% 預測區間平均約 ±0.040（淺色），實際值有 94.6% 落在預測區間內。</figcaption></figure>
+        <div class="grid2">
+          <div class="panel"><h3>評估指標（測試集）</h3><div class="tbl"><table><thead><tr><th>指標</th><th class="n">結果</th></tr></thead><tbody>
+            <tr><td>測試集 R²</td><td class="n">0.8421</td></tr><tr><td>測試集 RMSE</td><td class="n">0.0206</td></tr>
+            <tr><td>測試集 MAE</td><td class="n">0.0162</td></tr><tr><td>只猜平均的基準 RMSE</td><td class="n">0.0519</td></tr>
+            <tr><td>5-fold CV R²</td><td class="n">0.8323 ± 0.011</td></tr><tr><td>95% 預測區間涵蓋率</td><td class="n">94.6%</td></tr></tbody></table></div></div>
+          <div class="panel"><h3>線性迴歸假設檢定</h3><div class="tbl"><table><thead><tr><th>假設</th><th class="n">p 值／統計量</th><th>結果</th></tr></thead><tbody>
+            <tr><td>線性（Ramsey RESET）</td><td class="n">.001</td><td>未通過</td></tr>
+            <tr><td>同質變異（Breusch-Pagan）</td><td class="n">&lt; .001</td><td>未通過</td></tr>
+            <tr><td>殘差常態（Jarque-Bera）</td><td class="n">&lt; .001</td><td>未通過</td></tr>
+            <tr><td>誤差獨立（Durbin-Watson）</td><td class="n">2.029</td><td>通過</td></tr>
+            <tr><td>無共線性（最大 VIF）</td><td class="n">1.01</td><td>通過</td></tr></tbody></table></div>
+            <p class="note" style="margin-top:8px">殘差有異質變異、非常態，RESET 也顯示輕微的非線性：洪水機率在極高與極低端較平緩。只用「20 個評分的加總」做單純線性迴歸，測試集 R² 就有 0.841，表示洪水機率主要取決於總風險分數。</p></div>
+        </div>
+        <div class="panel"><h3>6. Deployment 部署</h3><ul class="clean">
+          <li>部署於<a href="app.html">互動探索器</a>：選「Predict the Flood」即可在瀏覽器中重跑特徵選擇、查看係數表、假設檢定與含信賴區間、預測區間的預測圖，並用滑桿即時預測。</li>
+          <li><b>限制：</b>這是合成資料，結論不能直接套用到真實地區；實際應用需要以真實觀測資料重新訓練，並持續監控預測區間的涵蓋率。</li>
+          <li><b>未來改進：</b>加入總分的二次項或改用非線性模型，處理兩端較平緩的關係。</li></ul></div>
       </div>
     </article>
 

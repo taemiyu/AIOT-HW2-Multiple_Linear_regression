@@ -80,7 +80,7 @@ python docs/build_docs.py
 
 | 要求 | 本專案的對應內容 |
 |---|---|
-| Kaggle 資料集，特徵數 > 13，標示來源與連結 | 主資料集 [Life Expectancy (WHO)](https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who)：20 個候選特徵，資料處理後 19 個；第二個資料集 [Predict the Flood](https://www.kaggle.com/competitions/playground-series-s4e5)：20 個特徵（探索器；報告書 2.2 節與第 10 節的 CRISP-DM 精簡版） |
+| Kaggle 資料集，特徵數 > 13，標示來源與連結 | 主資料集 [Life Expectancy (WHO)](https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who)：20 個候選特徵，資料處理後 19 個；第二個資料集 [Predict the Flood](https://www.kaggle.com/competitions/playground-series-s4e5)：20 個特徵（探索器；網頁報告與報告書第 10 節都有 CRISP-DM 精簡版） |
 | 線性迴歸（單純／多元） | 多元線性迴歸（OLS）；另附單純線性迴歸（Income composition of resources）比較 |
 | 特徵選擇 | Lasso、Forward SFS、RFE、ElasticNet 四種演算法 × k = 1～19，以依國家分組的交叉驗證 + 1-SD 精簡原則選模型 |
 | 模型評估 | 測試集為 37 個「沒看過的國家」：R²、RMSE、MAE、MAPE、分組 CV R²；與 Ridge／Lasso 比較；五大迴歸假設檢定 |
